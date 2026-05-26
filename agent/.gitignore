@@ -1,0 +1,7 @@
+# pi
+auth.json
+bin
+sessions
+
+# macOS
+.DS_Store

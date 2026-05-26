@@ -1,0 +1,10 @@
+{
+  "lastChangelogVersion": "0.75.5",
+  "packages": [],
+  "defaultProvider": "llama-cpp",
+  "defaultModel": "Qwen3-Coder-Next-GGUF:UD-Q4_K_XL",
+  "defaultThinkingLevel": "high",
+  "skills": [
+    "~/.pi/skills"
+  ]
+}
