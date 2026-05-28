@@ -12,10 +12,10 @@ Default: **do not leave durable changes** until the user confirms an approach.
 
 ### Two modes
 
-| Mode          | Purpose                                       | May edit code?           | Must end with                  |
-| ------------- | --------------------------------------------- | ------------------------ | ------------------------------ |
-| **Explore**   | Verify a hypothesis (debug, reproduce, spike) | Yes — temporary only     | Revert + findings + options    |
-| **Implement** | Deliver the agreed fix/feature                | Yes — after confirmation | Clean diff, definition of done |
+| Mode          | Purpose                                       | May edit code?           | Must end with                                     |
+| ------------- | --------------------------------------------- | ------------------------ | ------------------------------------------------- |
+| **Explore**   | Verify a hypothesis (debug, reproduce, spike) | Yes — temporary only     | Revert + findings + options                       |
+| **Implement** | Deliver the agreed fix/feature                | Yes — after confirmation | Clean diff, complexity report, definition of done |
 
 Stay in **Explore** until the user picks an option (or explicitly says to implement).
 
@@ -69,5 +69,4 @@ Assume the user is using Node v26+ which allows executing typescript directly, w
 
 ## Definition of done
 
-- [ ] Static analysis checks with `biome check --write` and `tsc --noEmit`
-- [ ] Ensure the changes follow the `typescript-style-guide`
+- [ ] Run the **review** skill
