@@ -2,9 +2,9 @@
  * Start Chrome with remote debugging enabled on port 9222.
  *
  * Usage:
- *   node browser-start.ts                    # Profile 9 (default), headless
+ *   node browser-start.ts                    # Default (default), headless
  *   node browser-start.ts --fresh            # Fresh profile, headless (no cookies, logins)
- *   node browser-start.ts --headed           # Profile 9 (default), headed (visible window)
+ *   node browser-start.ts --headed           # Default (default), headed (visible window)
  *   node browser-start.ts --fresh --headed   # Fresh profile, headed (visible window)
  *
  * If Chrome is already running on :9222, this script detects it and exits immediately.
@@ -19,25 +19,37 @@ const chromePidFile = `${process.env.HOME}/.cache/browser-tools/chrome.pid`;
 const args = process.argv.slice(2);
 const useFreshProfile = args.includes("--fresh");
 const headed = args.includes("--headed");
-const profileName = "Profile 9";
+const profileName = "Default";
 
 // Validate arguments — reject unknown flags
 const knownFlags = new Set(["--fresh", "--headed"]);
 const knownValues = new Set(["--fresh", "--headed"]);
-if (args.some((a: string) => a.startsWith("--") && !knownFlags.has(a) && !knownValues.has(a))) {
+if (
+  args.some(
+    (a: string) =>
+      a.startsWith("--") && !knownFlags.has(a) && !knownValues.has(a),
+  )
+) {
   console.log("Usage: node browser-start.ts [--fresh] [--headed]");
   console.log("\nOptions:");
-  console.log("  --fresh            Use a fresh profile (no cookies, logins, extensions)");
-  console.log("  --headed           Run Chrome in headed (visible) mode (default: headless)");
+  console.log(
+    "  --fresh            Use a fresh profile (no cookies, logins, extensions)",
+  );
+  console.log(
+    "  --headed           Run Chrome in headed (visible) mode (default: headless)",
+  );
   process.exit(1);
 }
 
 /** Check if the main Google Chrome application is running. */
 function isMainChromeRunning(): boolean {
   try {
-    execSync('pgrep -f "/Applications/Google Chrome.app/Contents/MacOS/Google Chrome$"', {
-      stdio: "ignore",
-    });
+    execSync(
+      'pgrep -f "/Applications/Google Chrome.app/Contents/MacOS/Google Chrome$"',
+      {
+        stdio: "ignore",
+      },
+    );
     return true;
   } catch {
     return false;
@@ -84,7 +96,9 @@ if (isRunning) {
     console.log("⚠ Chrome is starting on :9222 but not yet ready — waiting...");
     for (let i = 0; i < 8; i++) {
       await new Promise((r) => setTimeout(r, 300));
-      await tryConnectCDP().catch(() => console.log(`  ⏳ Not yet ready... (${i + 1})`));
+      await tryConnectCDP().catch(() =>
+        console.log(`  ⏳ Not yet ready... (${i + 1})`),
+      );
       console.log("✓ Chrome is now running on :9222");
       process.exit(0);
     }
@@ -94,7 +108,9 @@ if (isRunning) {
 }
 
 if (!useFreshProfile && isMainChromeRunning()) {
-  console.log("⚠ Main Chrome is running — skipping profile copy, using cached profile instead.");
+  console.log(
+    "⚠ Main Chrome is running — skipping profile copy, using cached profile instead.",
+  );
 }
 
 if (!useFreshProfile) {
@@ -119,9 +135,12 @@ if (!useFreshProfile) {
   const prefSrc = `${process.env.HOME}/Library/Application Support/Google/Chrome/Preferences`;
   const prefDst = `${profileDirectory}/Preferences`;
   try {
-    execSync(`[ -f "${prefSrc}" ] && cp -f "${prefSrc}" "${prefDst}" 2>/dev/null || true`, {
-      stdio: "pipe",
-    });
+    execSync(
+      `[ -f "${prefSrc}" ] && cp -f "${prefSrc}" "${prefDst}" 2>/dev/null || true`,
+      {
+        stdio: "pipe",
+      },
+    );
   } catch {
     console.log("Warning: Could not copy Preferences file");
   }
@@ -218,7 +237,9 @@ const connected = await (async () => {
   const tcpResult = await isPortOpen(9222, 500);
 
   if (tcpResult) {
-    console.log("⚠ CDP connection timed out but port 9222 is open — Chrome should be usable.");
+    console.log(
+      "⚠ CDP connection timed out but port 9222 is open — Chrome should be usable.",
+    );
     return true;
   }
   return false;
