@@ -1,7 +1,9 @@
 /**
  * Evaluate JavaScript in the active tab.
  *
- * Usage: node browser-eval.ts '<javascript code>'
+ * Usage:
+ *   node browser-eval.ts '<javascript code>'
+ *   node browser-eval.ts <file_path>
  *
  * Code is executed in the page context and the last expression value is returned.
  * For multi-statement code with `await`, wrap in an async IIFE:
