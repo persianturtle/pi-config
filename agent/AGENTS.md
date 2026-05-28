@@ -65,6 +65,19 @@ Present briefly:
 
 Assume the user is using Node v26+ which allows executing typescript directly, with no compilation step. Prefer to write scripts in TypeScript, executed via `node`.
 
+When creatig a skill/extension that require scripts, prefer using TypeScript, and make sure to add the following files:
+
+- `.gitignore` (igorning `node_modules`)
+- `biome.json`
+- `tsconfig.json`
+
+The `~/.pi/agent/skills/browser-tools` skill is a good example.
+
+Ensure that the skill/extension has at least the following npm scripts:
+
+- `npm run biome`
+- `npm run tsc`
+
 ---
 
 ## Definition of done
