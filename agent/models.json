@@ -1,7 +1,7 @@
 {
   "providers": {
     "llama-cpp": {
-      "baseUrl": "http://127.0.0.1:8080",
+      "baseUrl": "http://192.168.86.13:8080",
       "api": "openai-completions",
       "apiKey": "none",
       "models": [
@@ -10,6 +10,9 @@
         },
         {
           "id": "Qwen3-Coder-Next-GGUF:UD-Q4_K_XL"
+        },
+        {
+          "id": "Qwen3.6-35B-A3B-MTP-GGUF:UD-Q8_K_XL"
         }
       ]
     }
