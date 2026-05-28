@@ -1,61 +1,67 @@
 # Agent instructions
 
-## Verify external facts (browser-tool)
+## Verify assumptions
 
-Before stating version-specific facts, CLI flags, or library behavior, search the web via **browser-tool**. Do not trust memory for “latest” details.
-
-When choosing or upgrading dependencies, check official docs and release notes first, then align install commands and config with what you find.
-
-Repo-only work (reading code, refactors, local config) does not need a web search unless the answer depends on an external tool or version.
+Treat all knowledge as assumptions, which need to be verified by the research skill. This allows you to fetch the latest knowledge via google.com's AI Overview, which can be trusted.
 
 ---
 
-## Verify before editing code
+## Confirm before implementation
 
-When debugging, it's okay to make code changes to code to debug or prototype ideas. However, once the issue is resolved, you **must revert** any debugging-only changes to match the original state. Then, ask the user to proceed and provide options when possible.
+Default: **do not leave durable changes** until the user confirms an approach.
 
----
+### Two modes
 
-## Code quality (run before finishing changes)
+| Mode          | Purpose                                       | May edit code?           | Must end with                  |
+| ------------- | --------------------------------------------- | ------------------------ | ------------------------------ |
+| **Explore**   | Verify a hypothesis (debug, reproduce, spike) | Yes — temporary only     | Revert + findings + options    |
+| **Implement** | Deliver the agreed fix/feature                | Yes — after confirmation | Clean diff, definition of done |
 
-### Biome — format and lint
+Stay in **Explore** until the user picks an option (or explicitly says to implement).
 
-[Biome](https://biomejs.dev/) for JS/TS/JSON/CSS/HTML:
+### When to explore without asking first
 
-```sh
-npx @biomejs/biome check --write .
-```
+- Reproducing a bug (logs, minimal repro, read-only inspection)
+- Running checks the user already asked for (`tsc`, tests, biome)
+- **Spiking** a fix to learn _whether_ it works — only if you will revert before presenting options
+  Do **not** explore-by-editing for: refactors, new features, style churn, or “while I’m here” cleanups.
 
-Fix reported issues; do not add ignore/suppress comments without user approval (see below).
+### Explore rules (debug / spike)
 
-### TypeScript — style and type check
+1. State the hypothesis in one sentence before editing.
+2. Prefer the smallest change that tests the idea (one file, one branch of logic).
+3. Run only the checks needed to validate (test, repro command, etc.).
+4. **Revert all exploratory edits** before your next message — workspace should match pre-spike state unless the user said to keep experiments.
+5. Report: what you tried, what happened, root cause (if known), and **2–3 options** with tradeoffs.
 
-When writing or reviewing TypeScript, **read the `typescript-style-guide` skill first** and follow its patterns. The skill defines how we write TS; Biome and `tsc` catch formatting and compile errors.
+### When to switch to Implement
 
-If you are type casting (e.g. `as ...`, `as unknown as ...`) then you're not following the style guide.
+Move to **Implement** only after the user:
 
-```sh
-npx tsc --noEmit
-```
+- Chooses an option (“do A”), or
+- Explicitly waives confirmation (“just fix it”, “ship approach 2”)
+  Then make the real change cleanly (no leftover debug logging, commented blocks, or half of the spike).
 
-### Structure and duplication
+### Before implementing (required handoff)
 
-Read the diff and surrounding code. Fix copy-pasted logic, near-duplicate helpers, and dead code from refactors. Prefer small shared abstractions over heavy frameworks.
+Present briefly:
 
-### Errors — fix the cause, ask before workarounds
+- **Problem** (one line)
+- **Options** (numbered; each: approach, pros/cons, scope)
+- **Recommendation** (one option + why)
+- **Question**: “Which should I implement?” (or “Proceed with #2?”)
+  Skip the handoff only when the user already gave a clear, scoped instruction to implement.
 
-When lint, type check, or review surfaces an error you cannot resolve cleanly, **pause and ask the user** before:
+### Anti-patterns
 
-- Ignore/suppress comments (`// @ts-ignore`, `biome-ignore`, `eslint-disable`, etc.)
-- Casts or assertions that only silence the checker (`as any`, `!` without proof)
-- Other hacks that make the error disappear without fixing the root cause
-
-Suppressions and hacks often mean the approach is wrong. Prefer a real fix; if stuck, explain the error, what you tried, and ask how to proceed.
+- Leaving spike code in the tree “because it works”
+- Implementing the recommended option without waiting for confirmation
+- Large refactors during Explore
+- Asking for confirmation on every micro-step after the user said “go ahead”
 
 ---
 
 ## Definition of done
 
-- [ ] TypeScript follows `typescript-style-guide`; `biome check --write` and `tsc --noEmit` clean (no suppressions/hacks unless the user approved them)
-- [ ] No unnecessary duplication introduced
-- [ ] Version/API claims verified via browser-tool when stated
+- [ ] Static analysis checks with `biome check --write` and `tsc --noEmit`
+- [ ] Ensure the changes follow the `typescript-style-guide`
