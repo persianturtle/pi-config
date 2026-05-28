@@ -13,7 +13,7 @@ description: Use this skill for two primary purposes. 1) Researching topics and 
 ### Searching for library documentation
 
 ```bash
-# Start Chrome headless (with Profile 9 — cookies, logins preserved).
+# Start Chrome headless (with Default — cookies, logins preserved).
 # Check if already running first: ps aux | grep Chrome | grep 9222
 # If already running, skip this step entirely.
 node {baseDir}/browser-start.ts

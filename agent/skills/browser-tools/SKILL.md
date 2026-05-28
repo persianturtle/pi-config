@@ -32,30 +32,30 @@ node {baseDir}/browser-eval.ts 'document.title'
 ## Start Chrome
 
 ```bash
-node {baseDir}/browser-start.ts              # Copy Profile 9 (default), headless (cookies, logins, history)
+node {baseDir}/browser-start.ts              # Copy Default (default), headless (cookies, logins, history)
 node {baseDir}/browser-start.ts --fresh      # Fresh profile, headless (no cookies, logins, extensions)
-node {baseDir}/browser-start.ts --headed     # Copy Profile 9 (default), headed (visible window)
+node {baseDir}/browser-start.ts --headed     # Copy Default (default), headed (visible window)
 node {baseDir}/browser-start.ts --fresh --headed  # Fresh profile, headed (visible window)
 ```
 
 **Important:** Be sure to stop chrome (via node {baseDir}/browser-stop.ts}) once your usage is complete.
 
-**Default behavior:** Chrome runs in **headless** mode with your Chrome Profile 9 by default (cookies, logins, history preserved). Add `--fresh` to use a clean anonymous profile instead. Add `--headed` to launch a visible window.
+**Default behavior:** Chrome runs in **headless** mode with your Chrome Default by default (cookies, logins, history preserved). Add `--fresh` to use a clean anonymous profile instead. Add `--headed` to launch a visible window.
 
 **When to use `--fresh`:**
 
 - Use `--fresh` only for anonymous testing or when you explicitly need a clean session without your personal data
-- Default (no flags) always uses Profile 9 — this is what you want for almost everything
+- Default (no flags) always uses Default — this is what you want for almost everything
 
 **How Chrome profiles work:**
 
-- Copies your **Chrome Profile 9** data
+- Copies your **Chrome Default** data
 - Creates a minimal Local State to prevent Chrome from showing the profile picker
-- The profile is stored at `~/.cache/browser-tools/profile/Profile 9`
+- The profile is stored at `~/.cache/browser-tools/profile/Default`
 - Login sessions, cookies, and history from the chosen profile are preserved
 - **Safety:** The script will refuse to run if your main Google Chrome application is currently open, to prevent profile corruption.
 
-**Finding your Chrome profile:** Open Chrome and navigate to `chrome://version/`. Look for **Profile Path** — the profile name is the part after `Chrome/` (e.g., `Default`, `Profile 1`, `Profile 9`).
+**Finding your Chrome profile:** Open Chrome and navigate to `chrome://version/`. Look for **Profile Path** — the profile name is the part after `Chrome/` (e.g., `Default`, `Profile 1`, `Default`).
 
 **If Chrome is already running on :9222**, `browser-start.ts` will detect it and exit immediately — no need to restart.
 
@@ -142,7 +142,7 @@ node {baseDir}/browser-eval.ts 'document.title'
 node {baseDir}/browser-stop.ts
 ```
 
-**Note:** `browser-start.ts` uses your Chrome Profile 9 by default (cookies, logins, history). Only add `--fresh` if you need a clean anonymous session. Use `--profile <name>` to specify a different profile.
+**Note:** `browser-start.ts` uses your Chrome Default by default (cookies, logins, history). Only add `--fresh` if you need a clean anonymous session. Use `--profile <name>` to specify a different profile.
 
 ---
 
