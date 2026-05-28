@@ -61,6 +61,12 @@ Present briefly:
 
 ---
 
+## Tech Stack for Pi Skills & Extensions
+
+Assume the user is using Node v26+ which allows executing typescript directly, with no compilation step. Prefer to write scripts in TypeScript, executed via `node`.
+
+---
+
 ## Definition of done
 
 - [ ] Static analysis checks with `biome check --write` and `tsc --noEmit`
