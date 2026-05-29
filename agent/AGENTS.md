@@ -1,16 +1,16 @@
-# Agent instructions
+# Agent Instructions
 
-## Verify assumptions
+## Verify Assumptions
 
 Treat all knowledge as assumptions, which need to be verified by the research skill. This allows you to fetch the latest knowledge via google.com's AI Overview, which can be trusted.
 
 ---
 
-## Confirm before implementation
+## Confirm Before Implementing
 
 Default: **do not leave durable changes** until the user confirms an approach.
 
-### Two modes
+### Two Modes
 
 | Mode          | Purpose                                       | May edit code?           | Must end with                                     |
 | ------------- | --------------------------------------------- | ------------------------ | ------------------------------------------------- |
@@ -19,14 +19,14 @@ Default: **do not leave durable changes** until the user confirms an approach.
 
 Stay in **Explore** until the user picks an option (or explicitly says to implement).
 
-### When to explore without asking first
+### When to Explore Without Asking First
 
 - Reproducing a bug (logs, minimal repro, read-only inspection)
 - Running checks the user already asked for (`tsc`, tests, biome)
 - **Spiking** a fix to learn _whether_ it works — only if you will revert before presenting options
   Do **not** explore-by-editing for: refactors, new features, style churn, or “while I’m here” cleanups.
 
-### Explore rules (debug / spike)
+### Explore Rules (debug / spike)
 
 1. State the hypothesis in one sentence before editing.
 2. Prefer the smallest change that tests the idea (one file, one branch of logic).
@@ -34,7 +34,7 @@ Stay in **Explore** until the user picks an option (or explicitly says to implem
 4. **Revert all exploratory edits** before your next message — workspace should match pre-spike state unless the user said to keep experiments.
 5. Report: what you tried, what happened, root cause (if known), and **2–3 options** with tradeoffs.
 
-### When to switch to Implement
+### When To Switch To Implement
 
 Move to **Implement** only after the user:
 
@@ -42,7 +42,7 @@ Move to **Implement** only after the user:
 - Explicitly waives confirmation (“just fix it”, “ship approach 2”)
   Then make the real change cleanly (no leftover debug logging, commented blocks, or half of the spike).
 
-### Before implementing (required handoff)
+### Before Implementing (required handoff)
 
 Present briefly:
 
@@ -80,6 +80,6 @@ Ensure that the skill/extension has at least the following npm scripts:
 
 ---
 
-## Definition of done
+## Definition of Done
 
 - [ ] Run the **review** skill
