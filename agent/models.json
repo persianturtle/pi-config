@@ -4,15 +4,19 @@
       "baseUrl": "http://192.168.86.13:8080",
       "api": "openai-completions",
       "apiKey": "none",
+      "compat": {
+        "supportsDeveloperRole": false,
+        "supportsReasoningEffort": false,
+        "thinkingFormat": "qwen-chat-template"
+      },
       "models": [
         {
-          "id": "Qwen3.6-35B-A3B-GGUF:UD-Q8_K_XL"
-        },
-        {
-          "id": "Qwen3-Coder-Next-GGUF:UD-Q4_K_XL"
-        },
-        {
-          "id": "Qwen3.6-35B-A3B-MTP-GGUF:UD-Q8_K_XL"
+          "id": "Qwen3.6-35B-A3B-MTP-GGUF:UD-Q8_K_XL",
+          "name": "Qwen3.6-35B-A3B (vision + thinking)",
+          "input": ["text", "image"],
+          "reasoning": true,
+          "contextWindow": 262144,
+          "maxTokens": 32000
         }
       ]
     }
