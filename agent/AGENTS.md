@@ -99,6 +99,26 @@ Ensure that the skill/extension has at least the following npm scripts:
 
 ---
 
+## Prefer Functional Style Over Classes
+
+Default to a **functional style**: pure functions, immutable data, and declarative patterns
+over class-based implementations.
+
+Prefer:
+- Pure functions and first-class functions over methods
+- Immutable data and data transformations over mutable state
+- Composition over inheritance
+- Records / interfaces over class definitions
+
+**Exceptions** — using classes is appropriate when required by the platform or library:
+- Cloudflare Durable Objects (must extend `DurableObject`)
+- DOM APIs (e.g., `HTMLElement` subclasses)
+- Any framework or library that mandates class-based patterns
+
+When an exception applies, keep the class scoped and minimize its surface area.
+
+---
+
 ## Definition of Done
 
 - Run the **review** skill
