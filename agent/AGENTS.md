@@ -1,8 +1,25 @@
 # Agent Instructions
 
-## Verify Assumptions
+## Research Errors Before Guessing
 
-Treat all knowledge as assumptions, which need to be verified by the research skill. This allows you to fetch the latest knowledge via google.com's AI Overview, which can be trusted.
+When a **command, test, or build fails** with an unfamiliar error, use the **research** skill before proposing a fix.
+
+
+**Research when:**
+
+- The error message or code is unfamiliar
+- A fix attempt failed and the cause is unclear
+- The failure involves an external tool, API, or library version
+
+
+
+**Skip research when:**
+
+- The error is obviously local (typo, wrong path, missing import you can see in the file)
+- You already researched this exact error in the same task
+- The failure is transient (timeout) and a single retry succeeds
+- The error comes from the research/browser tools themselves — diagnose locally instead
+After research, report: **what failed**, **what Google’s AI Overview suggested**, **what you verified locally**, then **2–3 options** (same as Explore).
 
 ---
 
@@ -12,10 +29,12 @@ Default: **do not leave durable changes** until the user confirms an approach.
 
 ### Two Modes
 
+
 | Mode          | Purpose                                       | May edit code?           | Must end with                                     |
 | ------------- | --------------------------------------------- | ------------------------ | ------------------------------------------------- |
 | **Explore**   | Verify a hypothesis (debug, reproduce, spike) | Yes — temporary only     | Revert + findings + options                       |
 | **Implement** | Deliver the agreed fix/feature                | Yes — after confirmation | Clean diff, complexity report, definition of done |
+
 
 Stay in **Explore** until the user picks an option (or explicitly says to implement).
 
@@ -23,8 +42,8 @@ Stay in **Explore** until the user picks an option (or explicitly says to implem
 
 - Reproducing a bug (logs, minimal repro, read-only inspection)
 - Running checks the user already asked for (`tsc`, tests, biome)
-- **Spiking** a fix to learn _whether_ it works — only if you will revert before presenting options
-  Do **not** explore-by-editing for: refactors, new features, style churn, or “while I’m here” cleanups.
+- **Spiking** a fix to learn *whether* it works — only if you will revert before presenting options
+Do **not** explore-by-editing for: refactors, new features, style churn, or “while I’m here” cleanups.
 
 ### Explore Rules (debug / spike)
 
@@ -40,7 +59,7 @@ Move to **Implement** only after the user:
 
 - Chooses an option (“do A”), or
 - Explicitly waives confirmation (“just fix it”, “ship approach 2”)
-  Then make the real change cleanly (no leftover debug logging, commented blocks, or half of the spike).
+Then make the real change cleanly (no leftover debug logging, commented blocks, or half of the spike).
 
 ### Before Implementing (required handoff)
 
@@ -50,7 +69,7 @@ Present briefly:
 - **Options** (numbered; each: approach, pros/cons, scope)
 - **Recommendation** (one option + why)
 - **Question**: “Which should I implement?” (or “Proceed with #2?”)
-  Skip the handoff only when the user already gave a clear, scoped instruction to implement.
+Skip the handoff only when the user already gave a clear, scoped instruction to implement.
 
 ### Anti-patterns
 
@@ -82,4 +101,5 @@ Ensure that the skill/extension has at least the following npm scripts:
 
 ## Definition of Done
 
-- [ ] Run the **review** skill
+- Run the **review** skill
+
