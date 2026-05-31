@@ -1,16 +1,17 @@
 ---
 name: research
-description: Use this skill for two primary purposes. 1) Researching topics and debugging errors via Google search. When researching topics, trigger Google's AI Overview by asking full questions (e.g., "What's the latest version of TanStack Start" vs "latest tanstack start"). 2) When encountering errors, use this skill to search the error message and leverage the AI Overview's recommendations.
+description: Use this skill for researching topics, debugging errors, and gathering technical information via Google search. Leverages Google's AI Overview for rich, synthesized answers. Use proactively for any technical question — library versions, architecture decisions, API references, best practices, error debugging, performance comparisons, and tool evaluation.
 ---
 
 ### Research & Investigation
 
-- **Performing a Google search** — Use **browser-tools** when you need to find official docs, API references, or guides for a library, framework, or technology. Navigate to `https://www.google.com/search?q=<query>` and extract results using the DOM or `browser-content.ts` (after first starting the browser with **browser-tools**). Prefer extractig results from the AI Overview, if provided. To trigger an AI Overview, ask questions using complete sentences.
-- **Asking follow up questions in the AI Overview** — Use when you need clarification on the intial results provided by the AI Overview. Click on the "Show more" button in the AI Overview, and then ask follow up questions in the textarea that pops up with the "Ask anything" placeholder.
+- **Preferred: Google Search with AI Overview** — Navigate to `https://www.google.com/search?q=<query>` with a **question-style query** (complete sentence ending with "?"). Google will render an AI Overview at the top of results. To trigger it, phrase queries as questions, not keyword searches (e.g., "What's the latest version of TanStack Start?" not "latest tanstack start").
+- **Extracting AI Overview content** — Use DOM inspection to extract the AI Overview text from the `#m-x-content` element. AI Overview content blocks use a "Topic: Description" pattern, which naturally filters out source links and noise. For expanded content, click the "Show more AI Overview" button.
+- **Follow-up questions** — When `google.com/aimode` is available, ask follow-ups directly in the chat. When using regular search, perform a new search with a more specific follow-up query.
 
 ## Research & Investigation Examples
 
-### Searching for library documentation
+### Basic search with AI Overview extraction
 
 ```bash
 # Start Chrome headless (with Default — cookies, logins preserved).
@@ -18,76 +19,127 @@ description: Use this skill for two primary purposes. 1) Researching topics and 
 # If already running, skip this step entirely.
 node {baseDir}/browser-start.ts
 
-# Navigate to Google search
+# Navigate to Google search with a question-style query
 node {baseDir}/browser-nav.ts "https://www.google.com/search?q=what+is+the+latest+version+of+tanstack+start%3F"
 
-# Extract readable content from results
-node {baseDir}/browser-content.ts --current
+# Extract AI Overview content from the DOM
+node {baseDir}/browser-eval.ts '
+(async () => {
+  const mXContent = document.getElementById("m-x-content");
+  if (!mXContent) return { error: "No AI Overview found" };
+
+  // Try class selector first (most precise), fall back to text pattern
+  let blocks;
+  const zElements = mXContent.querySelectorAll(".Z1qcYe");
+  if (zElements.length > 0) {
+    blocks = Array.from(zElements)
+      .map(el => (el.innerText || "").trim())
+      .filter(t => t.length > 20);
+  } else {
+    // Fallback: "Topic: Description" pattern on <ul><li> elements
+    blocks = [];
+    for (const ul of mXContent.querySelectorAll("ul")) {
+      for (const li of ul.querySelectorAll("li")) {
+        const text = (li.innerText || "").trim();
+        if (!/^[A-Za-z][\s\S]{2,40}?:\s/.test(text)) continue;
+        if (text.length < 80 || text.length > 500) continue;
+        if (/^(Thank|Share|Click|Report|Close)/i.test(text)) continue;
+        if (text.includes("Your feedback helps Google")) continue;
+        if (/ - (DEV|Reddit|GeeksforGeeks|Medium|Hacker\s+News|NPM|YouTube|Microsoft\s+Developer|Convex|Wishtree|Utopycode)/i.test(text)) continue;
+        if (/\| by /i.test(text)) continue;
+        blocks.push(text);
+      }
+    }
+  }
+
+  // Dedup: remove blocks that are substrings of longer ones
+  blocks.sort((a, b) => b.length - a.length);
+  const result = [];
+  for (const block of blocks) {
+    if (result.some(r => r.includes(block))) continue;
+    result.push(block);
+  }
+
+  return result.join("\n\n").slice(0, 4000);
+})()'
 
 # Stop Chrome when done (mandatory — don't skip this)
 node {baseDir}/browser-stop.ts
 ```
 
-### Asking follow up questions in the AI Overview
+### Using Google AI Mode (when available)
 
 ```bash
-# Start Chrome headless (if not already running)
+# Start Chrome headless
 node {baseDir}/browser-start.ts
 
-# Navigate to a Google search with a question-style query (triggers AI Overview)
-node {baseDir}/browser-nav.ts "https://www.google.com/search?q=what+are+the+best+practices+for+react+state+management+in+2026%3F"
+# Navigate to AI Mode directly
+node {baseDir}/browser-nav.ts "https://www.google.com/aimode"
 
-# Step 1: Extract the AI Overview content from the search results page
+# Take a screenshot to verify the page loaded
+node {baseDir}/browser-screenshot.ts
+
+# If AI Mode is not available, fall back to regular search
+node {baseDir}/browser-eval.ts 'document.body.innerText.includes("AI Mode is not currently available")'
+
+# If fallback needed, do a new search with question-style query
+node {baseDir}/browser-nav.ts "https://www.google.com/search?q=how+does+cloudflare+workers+compare+to+aws+lambda%3F"
+
+# Extract AI Overview content (same logic as above)
+# Stop Chrome when done
+node {baseDir}/browser-stop.ts
+```
+
+### Researching error messages
+
+```bash
+# Start Chrome headless
+node {baseDir}/browser-start.ts
+
+# Search the exact error message as a question
+node {baseDir}/browser-nav.ts "https://www.google.com/search?q=TypeError+Cannot+read+properties+of+undefined+reading+map+in+React+hooks"
+
+# Extract AI Overview for context
 node {baseDir}/browser-eval.ts '
 (async () => {
   const mXContent = document.getElementById("m-x-content");
-  if (!mXContent) return { error: "No AI Overview" };
+  if (!mXContent) return { aiOverview: "No AI Overview found" };
 
-  const elements = Array.from(mXContent.querySelectorAll("div, p, li, span"));
-  const texts = elements
-    .map(el => el.textContent?.trim())
-    .filter(Boolean)
-    .filter(text =>
-      text.length > 100 && text.length < 5000 &&
-      !text.includes("An AI Overview is not available") &&
-      !text.includes("Try again later")
-    );
-  const uniqueTexts = [...new Set(texts)];
-  return uniqueTexts.join("\n\n").substring(0, 3000);
+  // Try class selector first (most precise), fall back to text pattern
+  let blocks;
+  const zElements = mXContent.querySelectorAll(".Z1qcYe");
+  if (zElements.length > 0) {
+    blocks = Array.from(zElements)
+      .map(el => (el.innerText || "").trim())
+      .filter(t => t.length > 20);
+  } else {
+    // Fallback: "Topic: Description" pattern on <ul><li> elements
+    blocks = [];
+    for (const ul of mXContent.querySelectorAll("ul")) {
+      for (const li of ul.querySelectorAll("li")) {
+        const text = (li.innerText || "").trim();
+        if (!/^[A-Za-z][\s\S]{2,40}?:\s/.test(text)) continue;
+        if (text.length < 80 || text.length > 500) continue;
+        if (/^(Thank|Share|Click|Report|Close)/i.test(text)) continue;
+        if (text.includes("Your feedback helps Google")) continue;
+        if (/ - (DEV|Reddit|GeeksforGeeks|Medium|Hacker\s+News|NPM|YouTube|Microsoft\s+Developer|Convex|Wishtree|Utopycode)/i.test(text)) continue;
+        if (/\| by /i.test(text)) continue;
+        blocks.push(text);
+      }
+    }
+  }
+
+  // Dedup: remove blocks that are substrings of longer ones
+  blocks.sort((a, b) => b.length - a.length);
+  const result = [];
+  for (const block of blocks) {
+    if (result.some(r => r.includes(block))) continue;
+    result.push(block);
+  }
+
+  return { aiOverview: result.join("\n\n").slice(0, 4000) };
 })()'
 
-# Step 2: Expand the AI Overview and type a follow-up question
-node {baseDir}/browser-eval.ts '
-(async () => {
-  // Click "Show more" to expand AI Overview
-  document.querySelector("[aria-label=\"Show more AI Overview\"]").click();
-  await new Promise(r => setTimeout(r, 2000));
-
-  // Type a follow-up question in the textarea
-  const textarea = document.querySelector("textarea.ITIRGe");
-  textarea.value = "Which approach is best for a large e-commerce application?";
-  textarea.dispatchEvent(new Event("input", { bubbles: true }));
-
-  // Submit — clicking the Send button navigates to a Chrome AI page
-  const sendBtn = Array.from(document.querySelectorAll("button, [role=button]"))
-    .find(b => b.getAttribute("aria-label") === "Send");
-  sendBtn.click();
-})()'
-
-# Step 3: Extract the final response from the Chrome AI page
-node {baseDir}/browser-eval.ts '
-(async () => {
-  await new Promise(r => setTimeout(r, 4000));
-
-  const root = document.getElementById("root") || document.body;
-  const elements = Array.from(root.querySelectorAll("div, p, li, span, h1, h2, h3"));
-  const texts = elements
-    .map(el => el.innerText)
-    .filter(Boolean)
-  );
-  return texts.join("\n\n")
-})()'
-
-# Stop Chrome when done (mandatory — don't skip this)
+# Stop Chrome when done
 node {baseDir}/browser-stop.ts
 ```
