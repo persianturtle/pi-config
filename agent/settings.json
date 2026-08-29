@@ -2,7 +2,7 @@
   "lastChangelogVersion": "0.84.2",
   "packages": [],
   "defaultProvider": "llama-cpp",
-  "defaultModel": "Qwen3.8-27B-UD-Q8_K_XL.gguf",
+  "defaultModel": "Qwen3.8-27B-UD-Q8_K_XL",
   "defaultThinkingLevel": "high",
   "skills": ["~/.pi/skills"],
   "theme": "light"
