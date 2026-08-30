@@ -2,10 +2,11 @@
  * Start Chrome with remote debugging enabled on port 9222.
  *
  * Usage:
- *   node browser-start.ts                    # Default (default), headless
+ *   node browser-start.ts                    # Default profile, headless
  *   node browser-start.ts --fresh            # Fresh profile, headless (no cookies, logins)
- *   node browser-start.ts --headed           # Default (default), headed (visible window)
+ *   node browser-start.ts --headed           # Default profile, headed (visible window)
  *   node browser-start.ts --fresh --headed   # Fresh profile, headed (visible window)
+ *   node browser-start.ts --profile "Profile 1"
  *
  * If Chrome is already running on :9222, this script detects it and exits immediately.
  */
@@ -17,39 +18,47 @@ import { chromium } from "playwright";
 const profileDirectory = `${process.env.HOME}/.cache/browser-tools/profile`;
 const chromePidFile = `${process.env.HOME}/.cache/browser-tools/chrome.pid`;
 const args = process.argv.slice(2);
-const useFreshProfile = args.includes("--fresh");
-const headed = args.includes("--headed");
-const profileName = "Default";
 
-// Validate arguments — reject unknown flags
-const knownFlags = new Set(["--fresh", "--headed"]);
-const knownValues = new Set(["--fresh", "--headed"]);
-if (
-  args.some(
-    (a: string) =>
-      a.startsWith("--") && !knownFlags.has(a) && !knownValues.has(a),
-  )
-) {
-  console.log("Usage: node browser-start.ts [--fresh] [--headed]");
+function printUsage(): never {
+  console.log("Usage: node browser-start.ts [--fresh] [--headed] [--profile <name>]");
   console.log("\nOptions:");
+  console.log("  --fresh            Use a fresh profile (no cookies, logins, extensions)");
+  console.log("  --headed           Run Chrome in headed (visible) mode (default: headless)");
   console.log(
-    "  --fresh            Use a fresh profile (no cookies, logins, extensions)",
-  );
-  console.log(
-    "  --headed           Run Chrome in headed (visible) mode (default: headless)",
+    '  --profile <name>   Chrome profile to copy (default: "Default"; see chrome://version)',
   );
   process.exit(1);
+}
+
+// Parse and validate arguments — reject unknown flags
+const knownFlags = new Set(["--fresh", "--headed"]);
+let useFreshProfile = false;
+let headed = false;
+let profileName = "Default";
+for (let i = 0; i < args.length; i++) {
+  const arg = args[i] ?? "";
+  if (arg === "--fresh") {
+    useFreshProfile = true;
+  } else if (arg === "--headed") {
+    headed = true;
+  } else if (arg === "--profile") {
+    const value = args[++i];
+    if (!value || value.startsWith("--")) {
+      console.log('Error: --profile requires a value (e.g. --profile "Profile 1")');
+      printUsage();
+    }
+    profileName = value;
+  } else if (!knownFlags.has(arg)) {
+    printUsage();
+  }
 }
 
 /** Check if the main Google Chrome application is running. */
 function isMainChromeRunning(): boolean {
   try {
-    execSync(
-      'pgrep -f "/Applications/Google Chrome.app/Contents/MacOS/Google Chrome$"',
-      {
-        stdio: "ignore",
-      },
-    );
+    execSync('pgrep -f "/Applications/Google Chrome.app/Contents/MacOS/Google Chrome$"', {
+      stdio: "ignore",
+    });
     return true;
   } catch {
     return false;
@@ -96,24 +105,35 @@ if (isRunning) {
     console.log("⚠ Chrome is starting on :9222 but not yet ready — waiting...");
     for (let i = 0; i < 8; i++) {
       await new Promise((r) => setTimeout(r, 300));
-      await tryConnectCDP().catch(() =>
-        console.log(`  ⏳ Not yet ready... (${i + 1})`),
-      );
-      console.log("✓ Chrome is now running on :9222");
-      process.exit(0);
+      try {
+        await tryConnectCDP();
+        console.log("✓ Chrome is now running on :9222");
+        process.exit(0);
+      } catch {
+        console.log(`  ⏳ Not yet ready... (${i + 1}/8)`);
+      }
     }
-    console.log("✓ Port 9222 confirmed open — Chrome should be usable.");
-    process.exit(0);
+    console.error("✗ Port 9222 is open but CDP never became ready — check Chrome manually.");
+    process.exit(1);
   }
 }
 
-if (!useFreshProfile && isMainChromeRunning()) {
-  console.log(
-    "⚠ Main Chrome is running — skipping profile copy, using cached profile instead.",
-  );
+// Safety: refuse to wipe the profile directory if a browser-tools Chrome
+// instance is still around (e.g. from a previous session) but its CDP port
+// is not reachable.
+try {
+  execSync(`pgrep -f "user-data-dir=${profileDirectory}"`, { stdio: "ignore" });
+  console.error("✗ A browser-tools Chrome instance is running but port 9222 is not reachable.");
+  console.error("Run: node browser-stop.ts — then try again.");
+  process.exit(1);
+} catch {
+  // No stale instance — safe to continue.
 }
 
 if (!useFreshProfile) {
+  if (isMainChromeRunning()) {
+    console.log("Note: main Chrome is open — the profile copy is read-only and safe.");
+  }
   console.log(`Copying Chrome profile "${profileName}"...`);
   execSync(`rm -rf "${profileDirectory}" && mkdir -p "${profileDirectory}"`, {
     stdio: "ignore",
@@ -135,12 +155,9 @@ if (!useFreshProfile) {
   const prefSrc = `${process.env.HOME}/Library/Application Support/Google/Chrome/Preferences`;
   const prefDst = `${profileDirectory}/Preferences`;
   try {
-    execSync(
-      `[ -f "${prefSrc}" ] && cp -f "${prefSrc}" "${prefDst}" 2>/dev/null || true`,
-      {
-        stdio: "pipe",
-      },
-    );
+    execSync(`[ -f "${prefSrc}" ] && cp -f "${prefSrc}" "${prefDst}" 2>/dev/null || true`, {
+      stdio: "pipe",
+    });
   } catch {
     console.log("Warning: Could not copy Preferences file");
   }
@@ -237,9 +254,7 @@ const connected = await (async () => {
   const tcpResult = await isPortOpen(9222, 500);
 
   if (tcpResult) {
-    console.log(
-      "⚠ CDP connection timed out but port 9222 is open — Chrome should be usable.",
-    );
+    console.log("⚠ CDP connection timed out but port 9222 is open — Chrome should be usable.");
     return true;
   }
   return false;
@@ -252,7 +267,7 @@ if (!connected) {
 }
 
 console.log(
-  `✓ Chrome started on :9222${useFreshProfile ? "with a fresh profile" : ` with profile "${profileName}"`}`,
+  `✓ Chrome started on :9222${useFreshProfile ? " with a fresh profile" : ` with profile "${profileName}"`}`,
 );
 
 // Explicit exit — unref() above ensures this won't leave Chrome hanging.

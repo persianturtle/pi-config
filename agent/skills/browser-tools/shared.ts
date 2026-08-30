@@ -46,15 +46,27 @@ export async function createPage(browser: Browser): Promise<Page> {
   return page;
 }
 
+type Outcome<T> = { ok: true; value: T } | { ok: false; error: unknown };
+
 /** Run a browser command with standard setup and error handling. */
 export async function runBrowserCommand<T>(action: (browser: Browser) => Promise<T>): Promise<T> {
   const browser = await connectCDP();
+  let outcome: Outcome<T>;
   try {
-    return await action(browser);
-  } catch (e) {
-    console.error("✗ Command failed:", e instanceof Error ? e.message : e);
-    process.exit(1);
+    outcome = { ok: true, value: await action(browser) };
+  } catch (error) {
+    outcome = { ok: false, error };
   } finally {
+    // Disconnects the CDP client without killing Chrome — the browser
+    // process keeps running for the next command.
     await browser.close();
   }
+  if (!outcome.ok) {
+    console.error(
+      "✗ Command failed:",
+      outcome.error instanceof Error ? outcome.error.message : outcome.error,
+    );
+    process.exit(1);
+  }
+  return outcome.value;
 }

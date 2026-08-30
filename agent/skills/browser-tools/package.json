@@ -5,16 +5,7 @@
   "description": "CDP tools for agent-assisted browser automation",
   "scripts": {
     "tsc": "tsc --noEmit",
-    "biome": "biome check --write",
-    "start": "tsx browser-start.ts",
-    "nav": "tsx browser-nav.ts",
-    "eval": "tsx browser-eval.ts",
-    "screenshot": "tsx browser-screenshot.ts",
-    "pick": "tsx browser-pick.ts",
-    "cookies": "tsx browser-cookies.ts",
-    "content": "tsx browser-content.ts",
-    "github": "tsx browser-github.ts",
-    "stop": "tsx browser-stop.ts"
+    "biome": "biome check --write"
   },
   "devDependencies": {
     "@biomejs/biome": "2.4.15",

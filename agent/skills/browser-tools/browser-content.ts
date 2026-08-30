@@ -1,6 +1,6 @@
 /**
- * Navigate to a URL and extract readable content as markdown.
- * Uses browser DOM traversal to convert HTML to markdown.
+ * Navigate to a URL and extract the page's readable text content.
+ * Uses the rendered DOM (document.body.innerText) — works on JS-heavy pages.
  *
  * Usage: node browser-content.ts <url>
  *
@@ -13,11 +13,11 @@ import { createPage, getActivePage, runBrowserCommand } from "./shared.ts";
 const urlOrFlag = process.argv[2];
 
 if (!urlOrFlag) {
-  console.log("Usage: node browser-content.ts <url>");
-  console.log("\nExtracts readable content from a URL as markdown.");
+  console.log("Usage: node browser-content.ts <url> | --current");
+  console.log("\nExtracts readable text content (innerText) from a page.");
   console.log("\nExamples:");
-  console.log("  node browser-content.ts https://example.com");
-  console.log("  https://en.wikipedia.org/wiki/OCaml");
+  console.log("  node browser-content.ts https://en.wikipedia.org/wiki/OCaml");
+  console.log("  node browser-content.ts --current");
   process.exit(1);
 }
 

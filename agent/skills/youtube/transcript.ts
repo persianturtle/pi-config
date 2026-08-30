@@ -18,7 +18,7 @@
  *   node transcript.ts https://youtu.be/abc123 --details --json
  */
 
-import { fetchTranscript, formatTranscript } from "./fetch.ts";
+import { fetchTranscript, formatTimestamp, formatTranscript } from "./fetch.ts";
 import type { TranscriptSegment } from "./types.ts";
 
 function parseArgs(argv: string[]): Record<string, string | undefined> {
@@ -60,7 +60,14 @@ async function main() {
   const opts: { lang?: string; videoDetails?: boolean; retries?: number } = {};
   if (raw.lang) opts.lang = raw.lang;
   if (raw.details) opts.videoDetails = true;
-  if (raw.retries) opts.retries = parseInt(raw.retries, 10);
+  if (raw.retries !== undefined) {
+    const retries = Number.parseInt(raw.retries, 10);
+    if (!Number.isInteger(retries) || retries < 0) {
+      console.error(`Error: --retries expects a non-negative integer, got "${raw.retries}"`);
+      process.exit(1);
+    }
+    opts.retries = retries;
+  }
 
   try {
     const result = await fetchTranscript(input, opts);
@@ -74,9 +81,7 @@ async function main() {
       const vd = result.videoDetails;
       console.log(`\n📺 ${vd.title}`);
       console.log(`👤 ${vd.author}`);
-      const mins = Math.floor(vd.lengthSeconds / 60);
-      const secs = vd.lengthSeconds % 60;
-      console.log(`⏱  ${mins}:${String(secs).padStart(2, "0")}`);
+      console.log(`⏱  ${formatTimestamp(vd.lengthSeconds)}`);
       console.log(`👁  ${vd.viewCount.toLocaleString()} views`);
       console.log(`\n--- Transcript ---\n`);
       if (result.segments.length === 0) {

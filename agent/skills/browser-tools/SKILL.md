@@ -26,40 +26,40 @@ Note: `baseDir` is likely ~/.pi/agent/skills
 
 ```bash
 node {baseDir}/browser-nav.ts https://example.com
-node {baseDir}/browser-eval.ts 'document.title'
+node {baseDir}/browser-eval.ts 'return document.title'
 ```
 
 ## Start Chrome
 
 ```bash
-node {baseDir}/browser-start.ts              # Copy Default (default), headless (cookies, logins, history)
-node {baseDir}/browser-start.ts --fresh      # Fresh profile, headless (no cookies, logins, extensions)
-node {baseDir}/browser-start.ts --headed     # Copy Default (default), headed (visible window)
-node {baseDir}/browser-start.ts --fresh --headed  # Fresh profile, headed (visible window)
+node {baseDir}/browser-start.ts                      # Copy Default (default), headless
+node {baseDir}/browser-start.ts --fresh              # Fresh profile, headless (no cookies, logins, extensions)
+node {baseDir}/browser-start.ts --headed             # Copy Default (default), headed (visible window)
+node {baseDir}/browser-start.ts --fresh --headed     # Fresh profile, headed (visible window)
+node {baseDir}/browser-start.ts --profile "Profile 1"  # Copy a specific Chrome profile
 ```
 
-**Important:** Be sure to stop chrome (via node {baseDir}/browser-stop.ts}) once your usage is complete.
+**Important:** Be sure to stop chrome (via `node {baseDir}/browser-stop.ts`) once your usage is complete.
 
-**Default behavior:** Chrome runs in **headless** mode with your Chrome Default by default (cookies, logins, history preserved). Add `--fresh` to use a clean anonymous profile instead. Add `--headed` to launch a visible window.
+**Default behavior:** Chrome runs in **headless** mode with a copy of your Chrome Default profile (cookies, logins, history preserved). Add `--fresh` to use a clean anonymous profile instead. Add `--headed` to launch a visible window.
 
 **When to use `--fresh`:**
 
 - Use `--fresh` only for anonymous testing or when you explicitly need a clean session without your personal data
-- Default (no flags) always uses Default — this is what you want for almost everything
+- Default (no flags) always copies Default — this is what you want for almost everything
 
 **How Chrome profiles work:**
 
-- Copies your **Chrome Default** data
+- Copies your **Chrome Default** profile data (or the one given via `--profile`) into a private directory — the copy is read-only with respect to your real profile, so it is safe even while your main Chrome is open
 - Creates a minimal Local State to prevent Chrome from showing the profile picker
 - The profile is stored at `~/.cache/browser-tools/profile/Default`
-- Login sessions, cookies, and history from the chosen profile are preserved
-- **Safety:** The script will refuse to run if your main Google Chrome application is currently open, to prevent profile corruption.
+- Login sessions, cookies, and history from the copied profile are preserved
 
-**Finding your Chrome profile:** Open Chrome and navigate to `chrome://version/`. Look for **Profile Path** — the profile name is the part after `Chrome/` (e.g., `Default`, `Profile 1`, `Default`).
+**Finding your Chrome profile:** Open Chrome and navigate to `chrome://version/`. Look for **Profile Path** — the profile name is the part after `Chrome/` (e.g., `Default`, `Profile 1`).
 
 **If Chrome is already running on :9222**, `browser-start.ts` will detect it and exit immediately — no need to restart.
 
-**Safety:** All tools use `try/finally` to ensure the Playwright connection is always cleanly disconnected (via `browser.close()`), even on errors. This disconnects the client from Chrome without killing the Chrome process — your personal Chrome tabs are never affected.
+**Safety:** All tools use `try/finally` to ensure the Playwright connection is always cleanly disconnected (via `browser.close()`), even on errors. This disconnects the client from Chrome without killing the Chrome process — your personal Chrome tabs are never affected. `browser-stop.ts` only kills processes launched with our private user-data-dir, so it can never touch your main Chrome.
 
 **⚡ Always check first:** Before running `browser-start.ts`, check if Chrome is already running:
 
@@ -83,11 +83,20 @@ Navigate to URLs. Use `--new` flag to open in a new tab instead of reusing curre
 ## Evaluate JavaScript
 
 ```bash
-node {baseDir}/browser-eval.ts 'document.title'
+node {baseDir}/browser-eval.ts 'return document.title'
 node {baseDir}/browser-eval.ts ./scripts/my-script.js
 ```
 
-Execute JavaScript in the active tab. You can pass a raw JavaScript string or a path to a `.js` file. **Code runs in an async context** — you can use `await` at the top level without wrapping in IIFE. Return values via `return` and wrap complex results in `JSON.stringify()`.
+Execute JavaScript in the active tab. You can pass a raw JavaScript string or a path to a `.js` file.
+
+**Code runs in an async function** — you can use `await` and `return` at the top level without wrapping in an IIFE:
+
+```bash
+node {baseDir}/browser-eval.ts 'await new Promise(r => setTimeout(r, 500)); return document.title'
+```
+
+- Use `return` to send a value back to the terminal (a bare expression without `return` yields `undefined`)
+- String results print as-is; other values are pretty-printed as JSON (wrap complex objects in `JSON.stringify` if you want a single-line compact form)
 
 ## Screenshot
 
@@ -105,7 +114,7 @@ node {baseDir}/browser-content.ts https://example.com
 node {baseDir}/browser-content.ts --current   # Extract from the page currently loaded in the browser
 ```
 
-Navigate to a URL and extract readable content as markdown. Uses Mozilla Readability-style DOM extraction and converts to markdown. Works on pages with JavaScript content (waits 1.5s for rendering by default).
+Navigate to a URL and extract the rendered page's text content (from `document.body.innerText`). Works on pages with JavaScript content because it reads the live DOM.
 
 **Tip:** Use `--current` to extract from the page already loaded in the browser (faster, no re-navigation).
 
@@ -136,13 +145,13 @@ node {baseDir}/browser-start.ts
 
 # Use browser tools...
 node {baseDir}/browser-nav.ts https://example.com
-node {baseDir}/browser-eval.ts 'document.title'
+node {baseDir}/browser-eval.ts 'return document.title'
 
 # Stop Chrome when done (mandatory — don't skip this)
 node {baseDir}/browser-stop.ts
 ```
 
-**Note:** `browser-start.ts` uses your Chrome Default by default (cookies, logins, history). Only add `--fresh` if you need a clean anonymous session. Use `--profile <name>` to specify a different profile.
+**Note:** `browser-start.ts` copies your Chrome Default by default (cookies, logins, history). Only add `--fresh` if you need a clean anonymous session. Use `--profile <name>` to copy a different profile.
 
 ---
 
@@ -154,10 +163,10 @@ node {baseDir}/browser-stop.ts
 
 ```javascript
 // Get page structure
-document.body.innerHTML.slice(0, 5000);
+return document.body.innerHTML.slice(0, 5000);
 
 // Find interactive elements
-Array.from(document.querySelectorAll('button, input, [role="button"]')).map(
+return Array.from(document.querySelectorAll('button, input, [role="button"]')).map(
   (e) => ({
     id: e.id,
     text: e.textContent.trim(),
@@ -166,24 +175,22 @@ Array.from(document.querySelectorAll('button, input, [role="button"]')).map(
 );
 ```
 
-### Complex Scripts in Single Calls
+### Top-Level `await` and `return`
 
-Code runs in **async context** — use `await` directly:
+Code runs in an **async context** — use `await` directly:
 
 ```javascript
-// Async code works natively now — no IIFE needed
+// Async code works natively — no IIFE needed
 await new Promise((r) => setTimeout(r, 500));
-const data = document.querySelector("#target").textContent;
-return data;
+return document.querySelector("#target").textContent;
 ```
 
-For multiple operations, still use a single statement or `async () => { ... }()` pattern:
+For multiple operations, just write plain statements ending in `return`:
 
 ```javascript
-// Simple multi-statement (works because it's in an async IIFE wrapper)
 const data = document.querySelector("#target").textContent;
 const buttons = document.querySelectorAll("button");
-JSON.stringify({ data, buttonCount: buttons.length });
+return JSON.stringify({ data, buttonCount: buttons.length });
 ```
 
 ### Batch Interactions
@@ -191,27 +198,31 @@ JSON.stringify({ data, buttonCount: buttons.length });
 **Don't** make separate calls for each click. **Do** batch them:
 
 ```javascript
-const actions = ["btn1", "btn2", "btn3"];
-actions.forEach((id) => document.getElementById(id).click());
-("Done");
+["btn1", "btn2", "btn3"].forEach((id) => document.getElementById(id).click());
+return "Done";
 ```
 
 ### Waiting for Updates
 
-Use `sleep` in bash as needed.
+```javascript
+await new Promise((r) => setTimeout(r, 500));
+return document.querySelector("#status").textContent;
+```
+
+Or use `sleep` in bash between separate tool calls.
 
 ### Investigate Before Interacting
 
 Always start by understanding the page structure:
 
 ```javascript
-{
+return {
   title: document.title,
   forms: document.forms.length,
   buttons: document.querySelectorAll('button').length,
   inputs: document.querySelectorAll('input').length,
-  mainContent: document.body.innerHTML.slice(0, 3000)
-}
+  mainContent: document.body.innerHTML.slice(0, 3000),
+};
 ```
 
 Then target specific elements based on what you find.
@@ -221,21 +232,16 @@ Then target specific elements based on what you find.
 For sites like GitHub that embed data in JSON scripts:
 
 ```javascript
-// Extract user from embedded React partial data
-(async () => {
-  const scripts = document.querySelectorAll(
-    "script[data-target='react-partial.embeddedData']",
-  );
-  for (const script of scripts) {
-    try {
-      const data = JSON.parse(script.textContent);
-      if (data.props?.userMenu?.owner?.login) {
-        return data.props.userMenu.owner;
-      }
-    } catch {
-      /* skip */
+const scripts = document.querySelectorAll("script[data-target='react-partial.embeddedData']");
+for (const script of scripts) {
+  try {
+    const data = JSON.parse(script.textContent);
+    if (data.props?.userMenu?.owner?.login) {
+      return data.props.userMenu.owner;
     }
+  } catch {
+    /* skip */
   }
-  return null;
-})();
+}
+return null;
 ```

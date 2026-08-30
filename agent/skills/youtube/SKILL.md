@@ -31,6 +31,9 @@ node transcript.ts https://youtu.be/<video-id> --lang nl
 # With video metadata
 node transcript.ts <video-id> --details
 
+# Increase retries for flaky networks
+node transcript.ts <video-id> --retries 5
+
 # Raw JSON output (for programmatic use)
 node transcript.ts <video-id> --details --json
 ```

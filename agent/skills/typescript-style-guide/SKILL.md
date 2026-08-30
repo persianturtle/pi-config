@@ -215,7 +215,7 @@ TypeScript's structural typing means branded types require casting and can be co
 
 ## Naming Conventions
 
--   **Types and Interfaces:** Use `PascalCase`, and perfer using types over interfaces.
+-   **Types and Interfaces:** Use `PascalCase`, and prefer using types over interfaces.
 -   **Variables and Functions:** Use `camelCase` (e.g., `const userName`, `function calculateTotal`).
 -   **Constants (Global):** Use `SCREAMING_SNAKE_CASE` (e.g., `const API_KEY`, `const DEFAULT_TIMEOUT`).
 -   **Enums:** Do not use enums. Prefer discriminated unions instead. We adhere to the `erasableSyntaxOnly` paradigm.

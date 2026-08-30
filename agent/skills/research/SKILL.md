@@ -99,46 +99,9 @@ node {baseDir}/browser-start.ts
 # Search the exact error message as a question
 node {baseDir}/browser-nav.ts "https://www.google.com/search?q=TypeError+Cannot+read+properties+of+undefined+reading+map+in+React+hooks"
 
-# Extract AI Overview for context
-node {baseDir}/browser-eval.ts '
-(async () => {
-  const mXContent = document.getElementById("m-x-content");
-  if (!mXContent) return { aiOverview: "No AI Overview found" };
-
-  // Try class selector first (most precise), fall back to text pattern
-  let blocks;
-  const zElements = mXContent.querySelectorAll(".Z1qcYe");
-  if (zElements.length > 0) {
-    blocks = Array.from(zElements)
-      .map(el => (el.innerText || "").trim())
-      .filter(t => t.length > 20);
-  } else {
-    // Fallback: "Topic: Description" pattern on <ul><li> elements
-    blocks = [];
-    for (const ul of mXContent.querySelectorAll("ul")) {
-      for (const li of ul.querySelectorAll("li")) {
-        const text = (li.innerText || "").trim();
-        if (!/^[A-Za-z][\s\S]{2,40}?:\s/.test(text)) continue;
-        if (text.length < 80 || text.length > 500) continue;
-        if (/^(Thank|Share|Click|Report|Close)/i.test(text)) continue;
-        if (text.includes("Your feedback helps Google")) continue;
-        if (/ - (DEV|Reddit|GeeksforGeeks|Medium|Hacker\s+News|NPM|YouTube|Microsoft\s+Developer|Convex|Wishtree|Utopycode)/i.test(text)) continue;
-        if (/\| by /i.test(text)) continue;
-        blocks.push(text);
-      }
-    }
-  }
-
-  // Dedup: remove blocks that are substrings of longer ones
-  blocks.sort((a, b) => b.length - a.length);
-  const result = [];
-  for (const block of blocks) {
-    if (result.some(r => r.includes(block))) continue;
-    result.push(block);
-  }
-
-  return { aiOverview: result.join("\n\n").slice(0, 4000) };
-})()'
+# Extract AI Overview for context (use the same extraction script from the
+# "Basic search" example above)
+node {baseDir}/browser-eval.ts '<same AI Overview extraction script as above>'
 
 # Stop Chrome when done
 node {baseDir}/browser-stop.ts

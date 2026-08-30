@@ -37,7 +37,7 @@ node {baseDir}/browser-content.ts --current
 node {baseDir}/browser-stop.ts
 ```
 
-- `browser-content.ts --current` returns the full chapter as markdown (~40–50 KB). The output starts with the sidebar table of contents — skip it; the chapter body begins at the chapter heading.
+- `browser-content.ts --current` returns the full chapter as plain text (~40–50 KB). The output starts with the sidebar table of contents — skip it; the chapter body begins at the chapter heading.
 - Chapters have deep-link section anchors, e.g. `https://architectingoncloudflare.com/chapter-06#when-to-use-durable-objects` — useful when you only need part of a chapter.
 - Topics often span multiple chapters: consume each relevant chapter (e.g., "storage decision" → Ch 11 for the framework, then Ch 12/13/14 for the specific store).
 
