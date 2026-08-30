@@ -202,6 +202,30 @@ return JSON.stringify({ data, buttonCount: buttons.length });
 return "Done";
 ```
 
+### Filling Controlled Inputs
+
+Frameworks (React, Angular, Vue) track input state themselves — setting `input.value = "x"` directly is ignored. Use the native value setter and dispatch an `input` event:
+
+```javascript
+function fill(input, value) {
+  const setter = Object.getOwnPropertyDescriptor(window.HTMLInputElement.prototype, "value").set;
+  input.focus();
+  setter.call(input, value);
+  input.dispatchEvent(new Event("input", { bubbles: true }));
+}
+fill(document.querySelector("#email"), "user@example.com");
+```
+
+**Chip/suggestion fields** (e.g., adding users in a dialog) usually commit the typed value on Enter:
+
+```javascript
+fill(input, "user@example.com");
+await new Promise((r) => setTimeout(r, 500));
+input.dispatchEvent(new KeyboardEvent("keydown", { key: "Enter", keyCode: 13, which: 13, bubbles: true }));
+```
+
+**Caveat:** after committing, `input.value` may read back empty even when the value was accepted — verify via the rendered chip/list text, not the input.
+
 ### Waiting for Updates
 
 ```javascript
@@ -210,6 +234,21 @@ return document.querySelector("#status").textContent;
 ```
 
 Or use `sleep` in bash between separate tool calls.
+
+### Verifying After Mutations
+
+After a save/submit on an SPA, don't trust the immediate post-action DOM — the app may redirect (e.g., to a "next step" page), re-render, or leave a stale form behind. **A URL change right after an action is a signal to re-inspect from scratch.**
+
+To confirm a mutation persisted, re-navigate to the canonical URL, wait, then re-read the state:
+
+```bash
+# After clicking Save:
+node {baseDir}/browser-nav.ts https://example.com/settings/page
+sleep 5
+node {baseDir}/browser-eval.ts 'return document.querySelector("#field")?.value'
+```
+
+Snackbar/toast messages often announce *unrelated* warnings (e.g., a separate incomplete setting), not confirmation of your save — verify state, not toasts.
 
 ### Investigate Before Interacting
 
