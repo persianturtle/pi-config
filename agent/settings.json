@@ -1,7 +1,8 @@
 {
   "lastChangelogVersion": "0.84.4",
   "packages": [],
-  "defaultProvider": "mlx",
+  "defaultProvider": "omlx",
+  "defaultModel": "mlx-community--Qwen3.8-27B-8bit",
   "skills": ["~/.pi/skills"],
   "theme": "light"
 }
