@@ -2,7 +2,7 @@
   "lastChangelogVersion": "0.84.4",
   "packages": [],
   "defaultProvider": "omlx",
-  "defaultModel": "mlx-community--Qwen3.8-27B-8bit",
+  "defaultModel": "mlx-community--Qwen3.8-27B-4bit",
   "defaultThinkingLevel": "high",
   "skills": ["~/.pi/skills"],
   "theme": "light"
