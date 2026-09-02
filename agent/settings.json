@@ -3,6 +3,7 @@
   "packages": [],
   "defaultProvider": "omlx",
   "defaultModel": "mlx-community--Qwen3.8-27B-8bit",
+  "defaultThinkingLevel": "high",
   "skills": ["~/.pi/skills"],
   "theme": "light"
 }
