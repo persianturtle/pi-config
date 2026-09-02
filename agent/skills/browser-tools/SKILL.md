@@ -69,6 +69,8 @@ ps aux | grep Chrome | grep 9222
 
 If Chrome is already running, **skip `browser-start.ts` entirely** and go straight to `browser-nav.ts`. Chrome sessions persist between pi sessions — it's almost always already running. Starting it again is wasteful and can trigger race conditions.
 
+**If a command fails with `ECONNREFUSED :9222`**, Chrome was killed between calls (e.g. by an aggressive memory guard). Re-run `browser-start.ts` (add `--headed` if the session needs headed) and continue — the profile copy makes this cheap. Long-running flows (submit + poll for a result) should keep their sleep/eval loop inside a **single bash command** to minimize exposure to process kills.
+
 ## Navigate
 
 ```bash
