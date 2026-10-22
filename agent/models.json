@@ -1,6 +1,5 @@
 {
   "providers": {
-<<<<<<< HEAD
     "mtplx": {
       "api": "openai-completions",
       "apiKey": "my-secret-key",
@@ -15,12 +14,6 @@
       "headers": {
         "x-mtplx-client": "pi"
       },
-=======
-    "mlx-lm": {
-      "baseUrl": "http://192.168.86.50:8000/v1",
-      "api": "openai-completions",
-      "apiKey": "my-secret-key",
->>>>>>> bf39de1 (Update pi)
       "models": [
         {
           "contextWindow": 262144,
