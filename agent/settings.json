@@ -1,11 +1,9 @@
 {
   "lastChangelogVersion": "1.4.0",
   "packages": [],
-  "defaultProvider": "mlx-lm",
+  "defaultProvider": "mtplx",
   "defaultModel": "Youssofal/Qwen3.8-Flash-Next-MTPLX-Optimized-Speed",
-  "defaultThinkingLevel": "high",
-  "skills": [
-    "~/.pi/skills"
-  ],
+  "defaultThinkingLevel": "xhigh",
+  "skills": ["~/.pi/skills"],
   "theme": "dark"
 }
