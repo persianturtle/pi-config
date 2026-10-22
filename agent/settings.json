@@ -1,9 +1,9 @@
 {
-  "lastChangelogVersion": "0.84.4",
+  "lastChangelogVersion": "0.85.1",
   "packages": [],
-  "defaultProvider": "omlx",
-  "defaultModel": "mlx-community--Qwen3.8-27B-4bit",
+  "defaultProvider": "mlx-lm",
+  "defaultModel": "Youssofal/Qwen3.8-Flash-Next-MTPLX-Optimized-Speed",
   "defaultThinkingLevel": "high",
   "skills": ["~/.pi/skills"],
-  "theme": "light"
+  "theme": "dark"
 }
