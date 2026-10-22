@@ -1,0 +1,25 @@
+{
+  "providers": {
+    "mlx-lm": {
+      "baseUrl": "http://localhost:8080/v1",
+      "api": "openai-completions",
+      "apiKey": "none",
+      "models": [
+        {
+          "id": "Youssofal/Qwen3.8-27B-MTPLX-Optimized-Quality",
+          "input": ["text", "image"],
+          "reasoning": true,
+          "contextWindow": 262144,
+          "maxTokens": 8192
+        },
+        {
+          "id": "Youssofal/Qwen3.8-Flash-Next-MTPLX-Optimized-Speed",
+          "input": ["text", "image"],
+          "reasoning": true,
+          "contextWindow": 262144,
+          "maxTokens": 8192
+        }
+      ]
+    }
+  }
+}
