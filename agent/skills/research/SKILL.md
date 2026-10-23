@@ -1,136 +1,92 @@
 ---
 name: research
-description: Use this skill for researching topics, debugging errors, and gathering technical information via Google search. Leverages Google's AI Overview for rich, synthesized answers. Use proactively for any technical question — library versions, architecture decisions, API references, best practices, error debugging, performance comparisons, and tool evaluation.
+description: Use this skill for researching topics, debugging errors, and gathering technical information via Google (AI Overviews and AI Mode) plus primary sources. Use proactively for technical questions — library versions, architecture decisions, API references, error root-causing, best practices, tool evaluation.
 ---
 
-### Browser scripts
-
-The browser scripts used below live in the **browser-tools** skill (sibling directory), not in this skill's directory. For the commands below, use:
-
-```bash
-BROWSER=~/.pi/agent/skills/browser-tools
-```
-
-(See the browser-tools SKILL.md for full documentation.)
-
-**CDP health check:** every `browser-*` call connects and disconnects. If a call fails with `ECONNREFUSED :9222`, Chrome was killed between calls (common under aggressive memory limits) — re-run `node $BROWSER/browser-start.ts` (add `--headed` if you need headed) and continue.
-
-### Research & Investigation
-
-- **Preferred: Google Search with AI Overview** — Navigate to `https://www.google.com/search?q=<query>` with a **question-style query** (complete sentence ending in "?"). Google renders an AI Overview at the top of results. To trigger it, phrase queries as questions, not keyword searches (e.g. "What's the latest version of TanStack Start?" not "latest tanstack start").
-- **Extracting AI Overview content** — Use DOM inspection to extract the AI Overview text from the `#m-x-content` element.
-
-### Basic search with AI Overview extraction
+Research runs through the **browser-tools** skill (sibling directory). Both skills
+share one Chrome instance; the scripts start Chrome for you and **queue** on it, so
+issuing two research calls in one message is safe — they take turns, they do not
+clobber each other's page.
 
 ```bash
-# Start Chrome headless (with Default — cookies, logins preserved).
-# Check if already running first: ps aux | grep Chrome | grep 9222
-# If already running, skip this step entirely.
-node $BROWSER/browser-start.ts
-
-# Navigate to Google search with a question-style query
-node $BROWSER/browser-nav.ts "https://www.google.com/search?q=what+is+the+latest+version+of+tanstack+start%3F"
-
-# Extract AI Overview content from the DOM.
-# NOTE: browser-eval already wraps code in an async IIFE — use top-level
-# statements and `return`; do NOT wrap in another IIFE (it yields undefined).
-node $BROWSER/browser-eval.ts '
-const mXContent = document.getElementById("m-x-content");
-if (!mXContent) return { error: "No AI Overview found" };
-
-// Try class selector first (most precise), fall back to text pattern
-let blocks;
-const zElements = mXContent.querySelectorAll(".Z1qcYe");
-if (zElements.length > 0) {
-  blocks = Array.from(zElements)
-    .map((el) => (el.innerText || "").trim())
-    .filter((t) => t.length > 20);
-} else {
-  // Fallback: "Topic: Description" pattern on <ul><li> elements
-  blocks = [];
-  for (const ul of mXContent.querySelectorAll("ul")) {
-    for (const li of ul.querySelectorAll("li")) {
-      const text = (li.innerText || "").trim();
-      if (!/^[A-Za-z][\s\S]{2,40}?:\s/.test(text)) continue;
-      if (text.length < 80 || text.length > 500) continue;
-      if (/^(Thank|Share|Click|Report|Close)/i.test(text)) continue;
-      if (text.includes("Your feedback helps Google")) continue;
-      blocks.push(text);
-    }
-  }
-}
-
-// Dedup: remove blocks that are substrings of longer ones
-blocks.sort((a, b) => b.length - a.length);
-const result = [];
-for (const block of blocks) {
-  if (result.some((r) => r.includes(block))) continue;
-  result.push(block);
-}
-
-return result.join("\n\n").slice(0, 4000);
-'
-
-# Stop Chrome when done (mandatory — don't skip this)
-node $BROWSER/browser-stop.ts
+B=~/.pi/agent/skills/browser-tools
 ```
 
-### Using Google AI Mode
-
-**AI Mode requires `--headed` Chrome.** In headless mode Google shows "AI Mode is not currently available on your device or account". The steps below are validated end-to-end:
+## Two one-shot commands
 
 ```bash
-# 1. Start headed Chrome (skip if already running on :9222)
-node $BROWSER/browser-start.ts --headed
+# Quick factual lookup — Google search page + AI Overview, ~6s
+node $B/browser-search.ts "What is the latest version of TanStack Start?"
 
-# 2. Navigate — Google redirects to /search?udm=50 with the AI Mode composer
-node $BROWSER/browser-nav.ts "https://www.google.com/aimode"
-
-# 3. Probe availability + composer in ONE eval (top-level return)
-node $BROWSER/browser-eval.ts '
-await new Promise((r) => setTimeout(r, 3000));
-return {
-  url: location.href,
-  unavailable: document.body.innerText.includes("AI Mode is not currently available"),
-  composer: Array.from(document.querySelectorAll("textarea")).some((t) => t.offsetParent !== null),
-};
-'
-# If "unavailable: true", fall back to regular search (AI Overview) or report it.
-
-# 4. Compose and submit the question (validated pattern):
-#    - the composer is the visible <textarea> (obfuscated class — select generically)
-#    - fill via the native value setter + input event
-#    - submit with the Enter key sequence
-node $BROWSER/browser-eval.ts '
-const q = `Your question here. Phrase it as a decision question with options (A/B/C) when you want a recommendation.`;
-const ta = Array.from(document.querySelectorAll("textarea")).find((t) => t.offsetParent !== null);
-if (!ta) return { error: "no composer textarea" };
-ta.focus();
-const setter = Object.getOwnPropertyDescriptor(window.HTMLTextAreaElement.prototype, "value").set;
-setter.call(ta, q);
-ta.dispatchEvent(new Event("input", { bubbles: true }));
-await new Promise((r) => setTimeout(r, 800));
-for (const type of ["keydown", "keypress", "keyup"]) {
-  ta.dispatchEvent(new KeyboardEvent(type, { key: "Enter", code: "Enter", keyCode: 13, which: 13, bubbles: true }));
-}
-await new Promise((r) => setTimeout(r, 1000));
-return { submitted: true, url: location.href };
-'
-# Success: URL changes to ?udm=50&q=... and the question echoes in the page.
-
-# 5. Wait, then extract. The answer appears after the question echo; the
-#    page ends with an "AI Mode response is ready" marker. Poll if needed.
-sleep 30
-node $BROWSER/browser-eval.ts 'return document.body.innerText.slice(-8000);'
-
-# Follow-up questions: reuse the same fill+Enter recipe in the same session.
-
-# 6. Stop Chrome when all browser work is done (mandatory)
-node $BROWSER/browser-stop.ts
+# Judgement/decision questions — Google AI Mode, waits for the answer (~15-60s)
+node $B/browser-ask.ts "Is it safer to pin the Stripe.js major version or load it evergreen from js.stripe.com?"
 ```
 
-**Caveats:**
+Both print the answer text directly; both **refuse to pass a bot wall off as an
+answer** (they exit non-zero and say so).
 
-- **AI Mode sessions do not survive a Chrome restart** — after any restart, `/aimode` opens a fresh composer; re-submit the question.
-- **Keep the flow tight under memory pressure** — if Chrome may be killed between calls, run start + nav + submit + poll in a single bash command with a sleep/eval loop, so the whole exchange happens inside one window.
-- When Google is down or the answer is thin, fall back to regular search AI Overviews (section above) and follow up with a more specific question-style query.
+- **`browser-search.ts`** — facts, versions, "does X exist", error-message lookups.
+  Add `--links` to also list external hrefs when Google exposes them.
+- **`browser-ask.ts`** — comparisons, trade-offs, "which of A/B/C", anything where
+  you want synthesis. Ask follow-ups by calling it again: it continues the thread
+  in the same tab. Add `--new-thread` to start over.
+
+Chrome restarts wipe the AI Mode thread, and a long wait is fragile if Chrome gets
+reaped between calls. For a long exchange, keep it in one bash command:
+
+```bash
+node $B/browser-ask.ts "Q1…" && node $B/browser-ask.ts "Follow-up to Q1…"
+```
+
+## Phrasing
+
+- Ask a **complete question**. `tanstack start version` works less reliably than
+  `What is the latest version of TanStack Start?`
+- For recommendations, name the options: `"…isolation via independent React roots,
+  Module Federation, or iframes — which do you recommend for a payment form and why?"`
+- One question per call. AI Mode answers the question it was given.
+- Add the constraint that actually matters (versions, parallelism, error text,
+  platform) — vague questions get fluent, useless answers.
+
+## Do not stop at the AI answer
+
+AI Overviews and AI Mode are leads, not evidence. Before you write a recommendation:
+
+1. **Open the primary source** for whatever you are about to assert:
+   `node $B/browser-content.ts https://…` or `curl -A <UA> https://…`,
+   or read the actual repo/package you have installed.
+2. **Check it locally where possible** — installed version, real source file,
+   a test run. Local evidence beats any search result.
+3. **Actively try to refute it.** If the answer says "X is impossible", ask once
+   more in `browser-ask.ts` framing it as a bug to explain, and read the code that
+   would have to be true for it to hold.
+
+Reproduced from earlier sessions, so you can sanity-check the tooling: a
+"fully rendered page + `waitForFunction` timeout" question returned actual
+Playwright guidance from AI Mode; a "Stripe evergreen SDK" question returned the
+real `js.stripe.com/<train>/` train model, which then matched `stripe-js` source.
+
+## When Google gives you nothing
+
+| What you see | What it means | Do |
+| --- | --- | --- |
+| `⚠ [bot-wall]` / `/sorry` / "unusual traffic" | Bot check. **Not** "the network is down". | `node $B/browser-start.ts --restart` (headed), retry once, slower. |
+| `(No AI Overview on this page…)` | Query didn't trigger an overview, or a consent page. | Re-ask as a question, or use `browser-ask.ts`. |
+| AI Mode: "not currently available" | Headless Chrome / no Google account. | Headed Chrome, or fall back to `browser-search.ts`. |
+| Blocked even headed, twice | That IP/network is flagged. | Stop burning calls: go straight to primary sources (vendor docs, repo source, installed `node_modules`). Say so in your answer. |
+
+If a source needs a login (private GitHub repo, internal dashboard), check
+`node $B/browser-whoami.ts` first. Your Chrome session is copied into the automation
+browser by default, so "logged out" is now the exception — but when it happens,
+GitHub renders private repos as 404, and that mistake cost a whole investigation once.
+
+## Report format
+
+Per the agent instructions, end research with:
+
+1. **What failed / what was asked** — the actual question and any dead ends.
+2. **What Google said** — the claim, attributed, with which tool produced it.
+3. **What you verified locally** — the source you opened, the version you checked.
+4. **2–3 options** with tradeoffs and a recommendation (same shape as Explore mode).
+
+If you could not verify something, say "unverified" instead of implying you read it.

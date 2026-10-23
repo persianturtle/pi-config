@@ -1,43 +1,89 @@
 /**
- * Evaluate JavaScript in the active tab.
+ * Evaluate JavaScript in a tab.
  *
  * Usage:
- *   node browser-eval.ts '<javascript code>'
- *   node browser-eval.ts <file_path>
+ *   node browser-eval.ts 'return document.title'
+ *   node browser-eval.ts 'document.title'                  # bare expression is auto-returned
+ *   node browser-eval.ts ./scripts/probe.js                # a file works too
+ *   echo 'return document.title' | node browser-eval.ts -  # or pipe it in (no quoting pain)
  *
- * Code runs in the page context, wrapped in an async function, so you can
- * use `await` and `return` at the top level:
- *   node browser-eval.ts 'await new Promise(r => setTimeout(r, 500)); return document.title'
+ * Flags: --tab <n|substr>  which tab;  --wait <ms>  pause before running;  --quiet  hide tab header
  *
- * Tip: Use `return` to send data back (a bare expression without `return`
- *      yields undefined). Strings are printed as-is; other values are
- *      pretty-printed with JSON.stringify.
+ * Code runs inside an async function: top-level `await` and `return` work, no IIFE needed.
+ * Strings print as-is; anything else is pretty-printed as JSON.
  */
-
 import fs from "node:fs";
-import { getActivePage, runBrowserCommand } from "./shared.ts";
+import {
+  flagValue,
+  hasFlag,
+  noteTab,
+  numFlag,
+  parseArgs,
+  pickPage,
+  runBrowserCommand,
+} from "./shared.ts";
 
-const input = process.argv[2];
+const args = parseArgs(process.argv.slice(2));
+const input = args.rest[0];
 
 if (!input) {
-  console.log("Usage: node browser-eval.ts '<javascript code>'");
-  console.log("       node browser-eval.ts <file_path>");
-  console.log("\nCode runs in the page context, wrapped in an async function:");
-  console.log("  - Use `await` at the top level (no IIFE needed)");
-  console.log("  - Use `return` to send a value back (bare expressions yield undefined)");
-  console.log("  - Strings print as-is; objects are pretty-printed as JSON");
+  console.log(
+    "Usage: node browser-eval.ts '<javascript>' | <file.js> | - [--tab <n|substr>] [--wait <ms>]",
+  );
+  console.log(
+    "\nRemember `return` — a bare expression is auto-returned, but multi-statement code is not.",
+  );
   process.exit(1);
 }
 
-const code = fs.existsSync(input) ? fs.readFileSync(input, "utf-8") : input;
+function readCode(source: string): string {
+  if (source === "-") {
+    if (process.stdin.isTTY) {
+      console.error("✗ '-' means read code from stdin, but nothing was piped in.");
+      process.exit(1);
+    }
+    const piped = fs.readFileSync(0, "utf-8").trim();
+    if (!piped) {
+      console.error("✗ stdin was empty.");
+      process.exit(1);
+    }
+    return piped;
+  }
+  if (fs.existsSync(source)) return fs.readFileSync(source, "utf-8");
+  return source;
+}
+
+const code = readCode(input);
+
+/**
+ * `document.title` → `return document.title`. Only for short single expressions:
+ * anything with a `;`, a declaration keyword, or an existing `return` is left alone.
+ */
+function toSource(script: string): string {
+  const trimmed = script.trim();
+  const looksLikeExpression =
+    !/\breturn\b/.test(trimmed) &&
+    !trimmed.includes(";") &&
+    !/^(const|let|var|if|for|while|function|class|try|throw|import)\b/.test(trimmed);
+  const body = looksLikeExpression ? `return ${trimmed};` : script;
+  return `(async () => {\n${body}\n})();`;
+}
 
 await runBrowserCommand(async (browser) => {
-  const page = await getActivePage(browser);
-  // Wrap in an async IIFE so `await` and `return` work at the top level.
-  const source = `(async () => {\n${code}\n})();`;
-  const result = await page.evaluate(source);
+  const page = await pickPage(browser, { tab: flagValue(args, "tab") });
+  const wait = numFlag(args, "wait", 0);
+  if (wait > 0) await new Promise((resolve) => setTimeout(resolve, wait));
+
+  const result = await page.evaluate(toSource(code));
+
+  if (!hasFlag(args, "quiet")) noteTab(page);
   if (typeof result === "string") {
     console.log(result);
+  } else if (result === undefined) {
+    console.log("undefined");
+    console.error(
+      "↪ undefined: add `return`, or wrap multiple statements so the last one returns.",
+    );
   } else {
     console.log(JSON.stringify(result, null, 2));
   }

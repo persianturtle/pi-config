@@ -1,288 +1,175 @@
 ---
 name: browser-tools
-description: Interactive browser automation via Chrome DevTools Protocol. Use when you need to visit URLs, read web pages, interact with web apps, scrape content, take screenshots, etc. Essential for any task requiring a real browser with account sessions.
+description: Interactive browser automation via Chrome DevTools Protocol — navigate, evaluate JS, extract page text, screenshot, check login state, query Google. Use when you need to visit URLs, read JS-rendered pages, drive web apps, or verify anything that needs a real browser with real sessions.
 ---
 
 # Browser Tools
 
-Chrome DevTools Protocol tools for agent-assisted web automation. These tools connect to Chrome running on `:9222` with remote debugging enabled.
+CDP-driven Chrome for agent work. Chrome is launched and controlled by these
+scripts; it is **not** your everyday Chrome and never touches your everyday tabs.
 
-## Viewport
-
-All scripts use a viewport of **1512×827** CSS pixels (a common laptop-sized viewport). Screenshots, DOM inspection, and page interactions all reflect this viewport size. This can be adjusted in `shared.ts` if needed.
-
-## Setup
-
-Run once before first use:
+Set this once per shell:
 
 ```bash
-cd {baseDir}/browser-tools
-npm install
+B=~/.pi/agent/skills/browser-tools
 ```
 
-Note: `baseDir` is likely ~/.pi/agent/skills
-
-**⚠️ Always run scripts with `node`** — these are TypeScript scripts. Node v23.6.0+ has built-in TypeScript support. For example:
+## The 30-second path
 
 ```bash
-node {baseDir}/browser-nav.ts https://example.com
-node {baseDir}/browser-eval.ts 'return document.title'
+node $B/browser-nav.ts https://example.com          # starts Chrome if needed
+node $B/browser-eval.ts 'document.title'            # any JS, top-level await/return
+node $B/browser-stop.ts                             # when ALL browser work in the task is done
 ```
 
-## Start Chrome
+Chrome starts itself: the scripts connect to `:9222` and, if nothing is listening,
+launch Chrome (~1s, prints `↻ Chrome not running… starting it`). Run
+`browser-start.ts` only to change mode or session source (`--headless`, `--no-copy`, `--fresh`, `--restart`, `--profile <name>`).
+
+One-time setup (skip if `$B/node_modules` exists): `cd $B && npm install`.
+A `ERR_MODULE_NOT_FOUND: playwright` error means that step was skipped.
+
+## Defaults (read this before you fight them)
+
+- **Headed by default.** A visible Chrome window is the point: Google AI Mode refuses
+  headless outright ("not currently available"), and bot checks (Cloudflare, Google
+  `/sorry`) are likelier headless — measured here: AI Mode worked headed, failed headless.
+  Use `--headless` only when you deliberately want a hidden browser.
+- **Your real Chrome session is copied in by default.** At launch, the current
+  profile's `Cookies` DB is snapshotted (verified, integrity-checked) into
+  `~/.cache/browser-tools/profile`, so logged-in sites — private GitHub repos
+  included — read as logged in. `--no-copy` keeps the profile's own state,
+  `--fresh` wipes it. See "Session and login".
+- **One tab is reused.** Commands hit the tab the previous command used. Use
+  `--new` for a new tab, `--tab 2` / `--tab github` to aim at a specific one,
+  and `node $B/browser-tabs.ts` to see them.
+- **Commands queue, they do not race.** One Chrome = one shared tab, so browser
+  commands take a lockfile turn (you may see `⏳ … queuing behind it…`). Issuing
+  them in parallel is safe; it just serialises. `BROWSER_TOOLS_NO_LOCK=1` opts out
+  and *will* return the wrong page — that is the bug it exists to prevent.
+- **Already-running Chrome is reused, never restarted.**
+
+## Scripts
+
+| Command | What it does |
+| --- | --- |
+| `browser-nav.ts <url> [--new] [--tab X] [--wait-for CSS] [--settle MS] [--text N]` | Navigate, wait for the page to settle, report URL/title/warnings |
+| `browser-eval.ts '<js>' \| file.js \| - [--tab X] [--wait MS]` | Run JS in a tab (inline, from a file, or piped) |
+| `browser-content.ts <url> \| --current [--limit N] [--html]` | Page text (or cleaned HTML) from the rendered DOM |
+| `browser-screenshot.ts [path] [--full] [--tab X]` | Viewport screenshot |
+| `browser-tabs.ts [--close N\|all]` | List tabs, show which one commands will hit |
+| `browser-whoami.ts [url]` | Am I logged in here? |
+| `browser-search.ts "<question>"` | Google search + AI Overview in one call |
+| `browser-ask.ts "<question>"` | Google AI Mode question, waits for the answer |
+| `browser-start.ts [--headless\|--no-copy\|--fresh\|--restart\|--profile <name>]` | Change Chrome mode / session source, or inspect |
+| `browser-stop.ts` | Kill only our Chrome instances |
+
+## Read pages honestly, not just quickly
+
+`browser-nav.ts` and `browser-content.ts` print `⚠` lines (on stderr, so `| head`
+stays clean) when the page is **not** what you asked for:
+
+```
+⚠ [auth] GitHub says NOT logged in (cookie logged_in=no). Private repos render as
+  "Page not found" when logged out, so a 404 here proves nothing.
+```
+
+Treat those as *blocking findings*, not noise. Two real cases they exist for:
+
+- A private repo and a non-existent repo are byte-identical when you are logged out.
+- A Google `/sorry` CAPTCHA and a Cloudflare "just a moment" page are not search results.
+
+When a 404/empty page matters, prove it another way before concluding:
+`git ls-remote`, `gh api`, `curl -A <UA>`, or log in once and re-check with
+`node $B/browser-whoami.ts`.
+
+## Session and login
+
+`browser-start.ts` copies your Chrome profile's session cookies into the automation
+profile, which is why `github.com/your-private-repo` renders instead of 404-ing. It
+reports what happened, and the copy is integrity-checked before use — a torn snapshot
+is discarded, never trusted. Chrome 136+ refuses to attach to your everyday Chrome
+(debug ports need a non-default profile dir), so copying is how logins get in.
+
+Check it, don't assume it:
 
 ```bash
-node {baseDir}/browser-start.ts                      # Copy Default (default), headless
-node {baseDir}/browser-start.ts --fresh              # Fresh profile, headless (no cookies, logins, extensions)
-node {baseDir}/browser-start.ts --headed             # Copy Default (default), headed (visible window)
-node {baseDir}/browser-start.ts --fresh --headed     # Fresh profile, headed (visible window)
-node {baseDir}/browser-start.ts --profile "Profile 1"  # Copy a specific Chrome profile
+node $B/browser-whoami.ts              # "GitHub: logged in" / "NOT logged in" + why
+node $B/browser-start.ts               # prints "session: N cookies copied …"
 ```
 
-**Important:** Be sure to stop chrome (via `node {baseDir}/browser-stop.ts`) once your usage is complete.
+- Prints `session: NOT copied — macOS blocked reading …` → the terminal lacks read
+  access to Chrome's data dir. Grant Full Disk Access, or log in once in the window.
+- `--no-copy` / `--fresh`: logged-out. Good for testing what an anonymous visitor sees.
+- **A copied session acts *as you*.** Reading is fine; anything that submits, clicks
+  "merge", or posts a comment is an action on your real accounts. Do the things the
+  user asked for, and prefer a read-only check when in doubt.
 
-**Default behavior:** Chrome runs in **headless** mode with a copy of your Chrome Default profile (cookies, logins, history preserved). Add `--fresh` to use a clean anonymous profile instead. Add `--headed` to launch a visible window.
+## Recipes
 
-**When to use `--fresh`:**
-
-- Use `--fresh` only for anonymous testing or when you explicitly need a clean session without your personal data
-- Default (no flags) always copies Default — this is what you want for almost everything
-
-**How Chrome profiles work:**
-
-- Copies your **Chrome Default** profile data (or the one given via `--profile`) into a private directory — the copy is read-only with respect to your real profile, so it is safe even while your main Chrome is open
-- Creates a minimal Local State to prevent Chrome from showing the profile picker
-- The profile is stored at `~/.cache/browser-tools/profile/Default`
-- Login sessions, cookies, and history from the copied profile are preserved
-
-**Finding your Chrome profile:** Open Chrome and navigate to `chrome://version/`. Look for **Profile Path** — the profile name is the part after `Chrome/` (e.g., `Default`, `Profile 1`).
-
-**If Chrome is already running on :9222**, `browser-start.ts` will detect it and exit immediately — no need to restart.
-
-**Safety:** All tools use `try/finally` to ensure the Playwright connection is always cleanly disconnected (via `browser.close()`), even on errors. This disconnects the client from Chrome without killing the Chrome process — your personal Chrome tabs are never affected. `browser-stop.ts` only kills processes launched with our private user-data-dir, so it can never touch your main Chrome.
-
-**⚡ Always check first:** Before running `browser-start.ts`, check if Chrome is already running:
+**One command, several steps** (fewer round-trips, and immune to Chrome being
+reaped between calls):
 
 ```bash
-ps aux | grep Chrome | grep 9222
+node $B/browser-nav.ts https://app.example.com/settings --wait-for '#save' \
+  && node $B/browser-eval.ts 'return document.querySelector("#save")?.textContent'
 ```
 
-If Chrome is already running, **skip `browser-start.ts` entirely** and go straight to `browser-nav.ts`. Chrome sessions persist between pi sessions — it's almost always already running. Starting it again is wasteful and can trigger race conditions.
-
-**If a command fails with `ECONNREFUSED :9222`**, Chrome was killed between calls (e.g. by an aggressive memory guard). Re-run `browser-start.ts` (add `--headed` if the session needs headed) and continue — the profile copy makes this cheap. Long-running flows (submit + poll for a result) should keep their sleep/eval loop inside a **single bash command** to minimize exposure to process kills.
-
-## Navigate
+**Batch interactions** in one eval instead of one call per click:
 
 ```bash
-node {baseDir}/browser-nav.ts https://example.com
-node {baseDir}/browser-nav.ts https://example.com --new
+node $B/browser-eval.ts '
+for (const id of ["btn1","btn2"]) document.getElementById(id)?.click();
+await new Promise(r => setTimeout(r, 500));
+return document.querySelectorAll("[data-done]").length;'
 ```
 
-Navigate to URLs. Use `--new` flag to open in a new tab instead of reusing current tab.
-
-**IMPORTANT**: Whenever you're asked to visit or open a URL, always use `browser-nav.ts`. Do not fall back to `open`, `start-chrome`, or any other method — this ensures the browser is managed by the CDP automation pipeline.
-
-## Evaluate JavaScript
+**Fill framework-controlled inputs** (React/Vue ignore a bare `input.value =`):
 
 ```bash
-node {baseDir}/browser-eval.ts 'return document.title'
-node {baseDir}/browser-eval.ts ./scripts/my-script.js
+node $B/browser-eval.ts '
+const el = document.querySelector("#email");
+const setter = Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, "value").set;
+el.focus(); setter.call(el, "user@example.com");
+el.dispatchEvent(new Event("input", { bubbles: true }));
+return el.value;'
 ```
 
-Execute JavaScript in the active tab. You can pass a raw JavaScript string or a path to a `.js` file.
+Chip/suggestion fields usually commit on Enter — send a `keydown` Enter, then
+verify via the rendered chip, not `input.value` (it often reads back empty).
 
-**Code runs in an async function** — you can use `await` and `return` at the top level without wrapping in an IIFE:
+**Verify a mutation actually persisted** — re-navigate to the canonical URL, then
+re-read:
 
 ```bash
-node {baseDir}/browser-eval.ts 'await new Promise(r => setTimeout(r, 500)); return document.title'
+node $B/browser-nav.ts https://app.example.com/settings/page --settle 2000
+node $B/browser-eval.ts 'return document.querySelector("#field")?.value'
 ```
 
-- Use `return` to send a value back to the terminal (a bare expression without `return` yields `undefined`)
-- String results print as-is; other values are pretty-printed as JSON (wrap complex objects in `JSON.stringify` if you want a single-line compact form)
+**Prefer DOM inspection over screenshots.** Use `--text N` or `browser-content.ts`
+to read a page; use a screenshot only when layout/visual state is the question.
 
-## Screenshot
+**Quoting pain:** if a JS snippet keeps breaking in shell quoting, write it to a
+file and run `node $B/browser-eval.ts /tmp/probe.js`, or pipe it:
+`cat /tmp/probe.js | node $B/browser-eval.ts -`. A single expression without
+`return` is auto-returned; multi-statement code is not.
 
-```bash
-node {baseDir}/browser-screenshot.ts
-node {baseDir}/browser-screenshot.ts /path/to/output.png
-```
+## Troubleshooting
 
-Capture current viewport and return file path. Defaults to `/tmp/screenshot-<uuid>.png`. Use this to visually inspect page state or verify UI changes.
+| Symptom | Cause → fix |
+| --- | --- |
+| `ERR_MODULE_NOT_FOUND: playwright` | Dependencies missing → `cd ~/.pi/agent/skills/browser-tools && npm install`. |
+| `connect ECONNREFUSED ::1:9222` | Old code: current scripts always use `127.0.0.1`, because `localhost` can resolve to `::1` and Chrome only binds IPv4. |
+| `↻ Chrome not running… starting it` | Normal self-heal after Chrome was killed/reaped. |
+| `No tabs open` (eval/content) | Chrome restarted mid-task. `browser-nav.ts` reopens a tab; assume page state was lost and re-navigate. |
+| `↻ navigation aborted (tab still busy) — retry 1/2` | Auto-recovered. Only a problem if it repeats and then fails. |
+| `⏳ … queuing behind it…` | Normal: commands take turns on the shared browser. |
+| `another browser command has the lock (pid N)` | A command died holding it. If pid N is gone: `rm ~/.cache/browser-tools/lock`. |
+| `⚠ [bot-wall]` (Google `/sorry`, Cloudflare) | Bot check, not a dead network. `node $B/browser-start.ts --restart` (headed), then go slower/fewer queries. |
+| AI Mode: "not currently available" | Headless Chrome, or no Google account. Headed fixes the first; use `browser-search.ts` for the second. |
+| Wrong page inspected | `node $B/browser-tabs.ts`, then pass `--tab`. |
+| Everything slow / hangs after many tabs | `node $B/browser-tabs.ts --close all`, or `node $B/browser-stop.ts`. |
 
-## Extract Page Content
-
-```bash
-node {baseDir}/browser-content.ts https://example.com
-node {baseDir}/browser-content.ts --current   # Extract from the page currently loaded in the browser
-```
-
-Navigate to a URL and extract the rendered page's text content (from `document.body.innerText`). Works on pages with JavaScript content because it reads the live DOM.
-
-**Tip:** Use `--current` to extract from the page already loaded in the browser (faster, no re-navigation).
-
-## Stop Chrome
-
-```bash
-node {baseDir}/browser-stop.ts
-```
-
-**MANDATORY:** Call this after every browser session to clean up Chrome processes. Chrome persists between pi sessions for efficiency (so you don't need to start it every time), but lingering processes accumulate and waste resources. Chrome will stay running across multiple browser-tool calls within a single task — only stop it when **all** browser work is finished.
-
-## When to Use
-
-- Testing frontend code in a real browser
-- Interacting with pages that require JavaScript
-- When user needs to visually see or interact with a page
-- Debugging authentication or session issues
-- Scraping dynamic content that requires JS execution
-- **The user asks to visit or open a URL**
-
-**Mandatory:** Always call `node {baseDir}/browser-stop.ts` at the end of every browser task. Skipping this leaves orphan Chrome processes running.
-
-### Starting and stopping Chrome
-
-```bash
-# Start Chrome (if not already running)
-node {baseDir}/browser-start.ts
-
-# Use browser tools...
-node {baseDir}/browser-nav.ts https://example.com
-node {baseDir}/browser-eval.ts 'return document.title'
-
-# Stop Chrome when done (mandatory — don't skip this)
-node {baseDir}/browser-stop.ts
-```
-
-**Note:** `browser-start.ts` copies your Chrome Default by default (cookies, logins, history). Only add `--fresh` if you need a clean anonymous session. Use `--profile <name>` to copy a different profile.
-
----
-
-## Efficiency Guide
-
-### DOM Inspection Over Screenshots
-
-**Don't** take screenshots to see page state. **Do** parse the DOM directly:
-
-```javascript
-// Get page structure
-return document.body.innerHTML.slice(0, 5000);
-
-// Find interactive elements
-return Array.from(document.querySelectorAll('button, input, [role="button"]')).map(
-  (e) => ({
-    id: e.id,
-    text: e.textContent.trim(),
-    class: e.className,
-  }),
-);
-```
-
-### Top-Level `await` and `return`
-
-Code runs in an **async context** — use `await` directly:
-
-```javascript
-// Async code works natively — no IIFE needed
-await new Promise((r) => setTimeout(r, 500));
-return document.querySelector("#target").textContent;
-```
-
-For multiple operations, just write plain statements ending in `return`:
-
-```javascript
-const data = document.querySelector("#target").textContent;
-const buttons = document.querySelectorAll("button");
-return JSON.stringify({ data, buttonCount: buttons.length });
-```
-
-### Batch Interactions
-
-**Don't** make separate calls for each click. **Do** batch them:
-
-```javascript
-["btn1", "btn2", "btn3"].forEach((id) => document.getElementById(id).click());
-return "Done";
-```
-
-### Filling Controlled Inputs
-
-Frameworks (React, Angular, Vue) track input state themselves — setting `input.value = "x"` directly is ignored. Use the native value setter and dispatch an `input` event:
-
-```javascript
-function fill(input, value) {
-  const setter = Object.getOwnPropertyDescriptor(window.HTMLInputElement.prototype, "value").set;
-  input.focus();
-  setter.call(input, value);
-  input.dispatchEvent(new Event("input", { bubbles: true }));
-}
-fill(document.querySelector("#email"), "user@example.com");
-```
-
-**Chip/suggestion fields** (e.g., adding users in a dialog) usually commit the typed value on Enter:
-
-```javascript
-fill(input, "user@example.com");
-await new Promise((r) => setTimeout(r, 500));
-input.dispatchEvent(new KeyboardEvent("keydown", { key: "Enter", keyCode: 13, which: 13, bubbles: true }));
-```
-
-**Caveat:** after committing, `input.value` may read back empty even when the value was accepted — verify via the rendered chip/list text, not the input.
-
-### Waiting for Updates
-
-```javascript
-await new Promise((r) => setTimeout(r, 500));
-return document.querySelector("#status").textContent;
-```
-
-Or use `sleep` in bash between separate tool calls.
-
-### Verifying After Mutations
-
-After a save/submit on an SPA, don't trust the immediate post-action DOM — the app may redirect (e.g., to a "next step" page), re-render, or leave a stale form behind. **A URL change right after an action is a signal to re-inspect from scratch.**
-
-To confirm a mutation persisted, re-navigate to the canonical URL, wait, then re-read the state:
-
-```bash
-# After clicking Save:
-node {baseDir}/browser-nav.ts https://example.com/settings/page
-sleep 5
-node {baseDir}/browser-eval.ts 'return document.querySelector("#field")?.value'
-```
-
-Snackbar/toast messages often announce *unrelated* warnings (e.g., a separate incomplete setting), not confirmation of your save — verify state, not toasts.
-
-### Investigate Before Interacting
-
-Always start by understanding the page structure:
-
-```javascript
-return {
-  title: document.title,
-  forms: document.forms.length,
-  buttons: document.querySelectorAll('button').length,
-  inputs: document.querySelectorAll('input').length,
-  mainContent: document.body.innerHTML.slice(0, 3000),
-};
-```
-
-Then target specific elements based on what you find.
-
-### Detect Logged-In Users on JS-Rich Sites
-
-For sites like GitHub that embed data in JSON scripts:
-
-```javascript
-const scripts = document.querySelectorAll("script[data-target='react-partial.embeddedData']");
-for (const script of scripts) {
-  try {
-    const data = JSON.parse(script.textContent);
-    if (data.props?.userMenu?.owner?.login) {
-      return data.props.userMenu.owner;
-    }
-  } catch {
-    /* skip */
-  }
-}
-return null;
-```
+**Cleanup:** run `node $B/browser-stop.ts` when all browser work in the task is
+done. Chrome is allowed to persist *within* a task; do not stop/restart it between
+two commands, and do not leave it running after the task ends.

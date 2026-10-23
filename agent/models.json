@@ -4,7 +4,7 @@
       "api": "openai-completions",
       "apiKey": "my-secret-key",
       "authHeader": true,
-      "baseUrl": "http:\/\/192.168.86.50:8000\/v1",
+      "baseUrl": "http://127.0.0.1:8000/v1",
       "compat": {
         "maxTokensField": "max_tokens",
         "supportsDeveloperRole": false,
