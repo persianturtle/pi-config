@@ -26,7 +26,25 @@
           "id": "mtplx-flash-next-optimized-speed",
           "input": ["text", "image"],
           "maxTokens": 262144,
-          "name": "MTPLX mtplx-flash-next-optimized-speed",
+          "name": "Qwen 3.8 Flash Next (Optimized Speed)",
+          "reasoning": true,
+          "thinkingLevelMap": {
+            "minimal": null,
+            "xhigh": "xhigh"
+          }
+        },
+        {
+          "contextWindow": 262144,
+          "cost": {
+            "cacheRead": 0,
+            "cacheWrite": 0,
+            "input": 0,
+            "output": 0
+          },
+          "id": "mtplx-27b-optimized-quality",
+          "input": ["text", "image"],
+          "maxTokens": 262144,
+          "name": "Qwen 3.8 27B (Optimized Quality)",
           "reasoning": true,
           "thinkingLevelMap": {
             "minimal": null,
