@@ -3,7 +3,10 @@
  *
  *   node scripts/verify.ts build/walkthrough.mp4 [--plan plan.json]
  *       [--scene-frames frames/deck] [--clip-root frames] [--fps 30]
- *       [--sheet 12] [--silence-floor -34]
+ *       [--sheet 12] [--step 10] [--silence-floor -34]
+ *
+ * --plan is the output of `timeline.ts --json`. --sheet N writes contact sheets of
+ * N frames each: one frame per scene with a plan, one every --step seconds without.
  *
  * Why each check exists — every one of these fired on a real build:
  *   audio    stretches under about -34 dB read as a broken file, not as quiet
@@ -20,17 +23,17 @@ import { spawnSync } from "node:child_process";
 import { existsSync, mkdirSync, readdirSync, readFileSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
+import { parseArgs } from "node:util";
 
 const FF = process.env.FFMPEG ?? "ffmpeg";
 
-type Scene = { id: string; start: number; dur: number; vo?: unknown; [k: string]: unknown };
-
-function arg(name: string): string | undefined;
-function arg(name: string, fallback: string): string;
-function arg(name: string, fallback?: string): string | undefined {
-  const i = process.argv.indexOf(`--${name}`);
-  return i >= 0 ? (process.argv[i + 1] ?? fallback) : fallback;
-}
+type Scene = {
+  id: string;
+  start: number;
+  dur: number;
+  vo?: string | { text?: string; dur?: number; at?: number };
+  [k: string]: unknown;
+};
 
 /**
  * ffmpeg writes filter summaries (volumedetect, silencedetect, blackdetect,
@@ -64,8 +67,21 @@ const wordSeconds = (text: string) => text.split(/\s+/).filter(Boolean).length *
 const fails: string[] = [];
 const notes: string[] = [];
 
-const video = process.argv[2];
-if (!video || !existsSync(video)) {
+const { values: args, positionals } = parseArgs({
+  allowPositionals: true,
+  options: {
+    plan: { type: "string" },
+    "scene-frames": { type: "string" },
+    "clip-root": { type: "string" },
+    fps: { type: "string", default: "30" },
+    sheet: { type: "string", default: "0" },
+    step: { type: "string", default: "10" },
+    "silence-floor": { type: "string", default: "-34" },
+  },
+});
+
+const video = positionals[0] ?? "";
+if (!existsSync(video)) {
   console.error("usage: node scripts/verify.ts <file.mp4> [--plan plan.json] [--sheet 12]");
   process.exit(2);
 }
@@ -78,7 +94,7 @@ if (!duration) {
 
 /* ------------------------------------------------------------------ audio -- */
 
-const floor = Number(arg("silence-floor", "-34"));
+const floor = Number(args["silence-floor"]);
 const levels = ff(["-i", video, "-af", "volumedetect", "-f", "null", "-"]);
 const mean = Number(/mean_volume: (-?[\d.]+) dB/.exec(levels)?.[1] ?? NaN);
 const peak = Number(/max_volume: (-?[\d.]+) dB/.exec(levels)?.[1] ?? NaN);
@@ -133,11 +149,21 @@ if (freezes.length) {
 
 /* ------------------------------------------------------------------- plan -- */
 
-const planPath = arg("plan");
-if (planPath && existsSync(planPath)) {
-  const parsed = JSON.parse(readFileSync(planPath, "utf8"));
+// Without a plan, contact sheets sample the file on a fixed step instead.
+let sheetSlots: Scene[] = [];
+for (let t = 0; t < duration; t += Number(args.step)) {
+  sheetSlots.push({
+    id: `t${t.toFixed(0)}`,
+    start: t,
+    dur: Math.min(Number(args.step), duration - t),
+  });
+}
+
+if (args.plan) {
+  const parsed = JSON.parse(readFileSync(args.plan, "utf8"));
   const scenes: Scene[] = parsed.scenes ?? parsed;
-  const fps = Number(arg("fps", "30"));
+  const fps = Number(args.fps);
+  sheetSlots = scenes;
 
   const planned = scenes.reduce((a, s) => a + s.dur, 0);
   if (Math.abs(planned - duration) > 2) {
@@ -146,8 +172,8 @@ if (planPath && existsSync(planPath)) {
     );
   }
 
-  const sceneFrames = arg("scene-frames") ?? arg("frames");
-  const clipRoot = arg("clip-root") ?? arg("frames");
+  const sceneFrames = args["scene-frames"];
+  const clipRoot = args["clip-root"];
 
   if (sceneFrames && existsSync(sceneFrames)) {
     for (const s of scenes) {
@@ -174,31 +200,14 @@ if (planPath && existsSync(planPath)) {
     const s = scenes[i] as Scene;
     const next = scenes[i + 1] as Scene;
     if (!s.vo) continue;
-    const vo = s.vo as { dur?: number; at?: number };
-    const dur =
-      typeof s.vo === "object"
-        ? Number(vo.dur ?? wordSeconds(String(s.vo)))
-        : wordSeconds(String(s.vo));
-    const at = typeof s.vo === "object" ? Number(vo.at ?? 0.9) : 0.9;
-    const spill = s.start + at + dur - next.start;
+    const vo = typeof s.vo === "string" ? { text: s.vo } : s.vo;
+    const dur = vo.dur ?? wordSeconds(vo.text ?? "");
+    const spill = s.start + (vo.at ?? 0.9) + dur - next.start;
     if (spill > 0.2) fails.push(`${s.id}: narration runs ${spill.toFixed(1)}s into "${next.id}"`);
   }
-
-  const per = Number(arg("sheet", "0"));
-  if (per > 0) sheet(scenes, per);
 }
 
-// Sheets without a plan: sample on a fixed step so the eyeball check is still
-// available for a file you did not build with this toolkit.
-const perAlone = Number(arg("sheet", "0"));
-if (perAlone > 0 && !(planPath && existsSync(planPath))) {
-  const step = Number(arg("step", "10"));
-  const slots: Scene[] = [];
-  for (let t = 0; t < duration; t += step) {
-    slots.push({ id: `t${t.toFixed(0)}`, start: t, dur: Math.min(step, duration - t) });
-  }
-  sheet(slots, perAlone);
-}
+if (Number(args.sheet) > 0) sheet(sheetSlots, Number(args.sheet));
 
 console.log("checks:");
 for (const n of notes) console.log(`  · ${n}`);
@@ -223,7 +232,7 @@ function sheet(scenes: Scene[], per: number) {
     const at = (s.start + s.dur * 0.8).toFixed(2);
     const file = join(tmp, `${String(i).padStart(4, "0")}.png`);
     try {
-      ffq(["-ss", at, "-i", video as string, "-frames:v", "1", "-vf", "scale=460:-1", file]);
+      ffq(["-ss", at, "-i", video, "-frames:v", "1", "-vf", "scale=460:-1", file]);
       taken.push(file);
     } catch {
       /* frame not present; skip */

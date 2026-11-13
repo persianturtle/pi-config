@@ -5,49 +5,18 @@ description: Interactive browser automation via Chrome DevTools Protocol — nav
 
 # Browser Tools
 
-CDP-driven Chrome for agent work. Chrome is launched and controlled by these
-scripts; it is **not** your everyday Chrome and never touches your everyday tabs.
-
-Set this once per shell:
+A separate Chrome instance, launched and driven by these scripts over CDP. It is
+**not** your everyday Chrome and never touches your everyday tabs.
 
 ```bash
 B=~/.pi/agent/skills/browser-tools
-```
 
-## The 30-second path
-
-```bash
 node $B/browser-nav.ts https://example.com          # starts Chrome if needed
 node $B/browser-eval.ts 'document.title'            # any JS, top-level await/return
 node $B/browser-stop.ts                             # when ALL browser work in the task is done
 ```
 
-Chrome starts itself: the scripts connect to `:9222` and, if nothing is listening,
-launch Chrome (~1s, prints `↻ Chrome not running… starting it`). Run
-`browser-start.ts` only to change mode or session source (`--headless`, `--no-copy`, `--fresh`, `--restart`, `--profile <name>`).
-
-One-time setup (skip if `$B/node_modules` exists): `cd $B && npm install`.
-A `ERR_MODULE_NOT_FOUND: playwright` error means that step was skipped.
-
-## Defaults (read this before you fight them)
-
-- **Headed by default.** A visible Chrome window is the point: Google AI Mode refuses
-  headless outright ("not currently available"), and bot checks (Cloudflare, Google
-  `/sorry`) are likelier headless — measured here: AI Mode worked headed, failed headless.
-  Use `--headless` only when you deliberately want a hidden browser.
-- **Your real Chrome session is copied in by default.** At launch, the current
-  profile's `Cookies` DB is snapshotted (verified, integrity-checked) into
-  `~/.cache/browser-tools/profile`, so logged-in sites — private GitHub repos
-  included — read as logged in. `--no-copy` keeps the profile's own state,
-  `--fresh` wipes it. See "Session and login".
-- **One tab is reused.** Commands hit the tab the previous command used. Use
-  `--new` for a new tab, `--tab 2` / `--tab github` to aim at a specific one,
-  and `node $B/browser-tabs.ts` to see them.
-- **Commands queue, they do not race.** One Chrome = one shared tab, so browser
-  commands take a lockfile turn (you may see `⏳ … queuing behind it…`). Issuing
-  them in parallel is safe; it just serialises. `BROWSER_TOOLS_NO_LOCK=1` opts out
-  and *will* return the wrong page — that is the bug it exists to prevent.
-- **Already-running Chrome is reused, never restarted.**
+One-time setup, if `$B/node_modules` is missing: `cd $B && npm install`.
 
 ## Scripts
 
@@ -61,8 +30,31 @@ A `ERR_MODULE_NOT_FOUND: playwright` error means that step was skipped.
 | `browser-whoami.ts [url]` | Am I logged in here? |
 | `browser-search.ts "<question>"` | Google search + AI Overview in one call |
 | `browser-ask.ts "<question>"` | Google AI Mode question, waits for the answer |
-| `browser-start.ts [--headless\|--no-copy\|--fresh\|--restart\|--profile <name>]` | Change Chrome mode / session source, or inspect |
+| `browser-start.ts [--headless\|--no-copy\|--fresh\|--restart\|--profile <name>]` | Change Chrome mode / session source |
 | `browser-stop.ts` | Kill only our Chrome instances |
+
+## How it behaves
+
+- **Chrome starts itself.** Any command launches it if nothing is listening on
+  `:9222`, and reuses it if something is. Run `browser-start.ts` only to change
+  mode or session source.
+- **Headed by default.** Google AI Mode refuses headless Chrome outright, and bot
+  checks (Cloudflare, Google `/sorry`) are likelier headless. Use `--headless` only
+  when you deliberately want a hidden browser.
+- **Your real Chrome session is copied in.** At launch, your Chrome profile's
+  cookies are snapshotted into `~/.cache/browser-tools/profile`, so logged-in sites —
+  private GitHub repos included — read as logged in. `--no-copy` keeps the automation
+  profile's existing state; `--fresh` wipes it (anonymous).
+- **One tab is reused.** Commands hit the tab the previous command used. `--new`
+  opens a new tab, `--tab 2` / `--tab github` aims at a specific one.
+- **Commands queue, they do not race.** Issuing browser commands in parallel is
+  safe: they take turns on a lockfile (`⏳ … queuing behind it…`).
+- **Stop it when the task is done**, not between commands: `browser-stop.ts`.
+
+## A copied session acts as you
+
+Reading is fine. Anything that submits, merges, or posts is an action on the user's
+real accounts — do only what was asked, and prefer a read-only check when in doubt.
 
 ## Read pages honestly, not just quickly
 
@@ -74,41 +66,22 @@ stays clean) when the page is **not** what you asked for:
   "Page not found" when logged out, so a 404 here proves nothing.
 ```
 
-Treat those as *blocking findings*, not noise. Two real cases they exist for:
+Treat those as blocking findings, not noise:
 
 - A private repo and a non-existent repo are byte-identical when you are logged out.
-- A Google `/sorry` CAPTCHA and a Cloudflare "just a moment" page are not search results.
+- A Google `/sorry` CAPTCHA and a Cloudflare "just a moment" page are not content.
 
-When a 404/empty page matters, prove it another way before concluding:
-`git ls-remote`, `gh api`, `curl -A <UA>`, or log in once and re-check with
-`node $B/browser-whoami.ts`.
+When a 404 or empty page matters, check the session with `browser-whoami.ts`
+(`GitHub: logged in` / `NOT logged in`, plus the evidence), or prove it another way:
+`git ls-remote`, `gh api`, `curl`.
 
-## Session and login
-
-`browser-start.ts` copies your Chrome profile's session cookies into the automation
-profile, which is why `github.com/your-private-repo` renders instead of 404-ing. It
-reports what happened, and the copy is integrity-checked before use — a torn snapshot
-is discarded, never trusted. Chrome 136+ refuses to attach to your everyday Chrome
-(debug ports need a non-default profile dir), so copying is how logins get in.
-
-Check it, don't assume it:
-
-```bash
-node $B/browser-whoami.ts              # "GitHub: logged in" / "NOT logged in" + why
-node $B/browser-start.ts               # prints "session: N cookies copied …"
-```
-
-- Prints `session: NOT copied — macOS blocked reading …` → the terminal lacks read
-  access to Chrome's data dir. Grant Full Disk Access, or log in once in the window.
-- `--no-copy` / `--fresh`: logged-out. Good for testing what an anonymous visitor sees.
-- **A copied session acts *as you*.** Reading is fine; anything that submits, clicks
-  "merge", or posts a comment is an action on your real accounts. Do the things the
-  user asked for, and prefer a read-only check when in doubt.
+If `browser-start.ts` prints `session: NOT copied — macOS blocked reading …`, the
+terminal lacks access to Chrome's data dir: grant it Full Disk Access, or log in once
+in the automation window (the login persists in its profile).
 
 ## Recipes
 
-**One command, several steps** (fewer round-trips, and immune to Chrome being
-reaped between calls):
+**Several steps in one command** — fewer round-trips:
 
 ```bash
 node $B/browser-nav.ts https://app.example.com/settings --wait-for '#save' \
@@ -124,6 +97,8 @@ await new Promise(r => setTimeout(r, 500));
 return document.querySelectorAll("[data-done]").length;'
 ```
 
+A single expression is auto-returned; multi-statement code needs an explicit `return`.
+
 **Fill framework-controlled inputs** (React/Vue ignore a bare `input.value =`):
 
 ```bash
@@ -138,38 +113,25 @@ return el.value;'
 Chip/suggestion fields usually commit on Enter — send a `keydown` Enter, then
 verify via the rendered chip, not `input.value` (it often reads back empty).
 
-**Verify a mutation actually persisted** — re-navigate to the canonical URL, then
-re-read:
-
-```bash
-node $B/browser-nav.ts https://app.example.com/settings/page --settle 2000
-node $B/browser-eval.ts 'return document.querySelector("#field")?.value'
-```
+**Verify a mutation persisted** — re-navigate to the canonical URL, then re-read it.
 
 **Prefer DOM inspection over screenshots.** Use `--text N` or `browser-content.ts`
-to read a page; use a screenshot only when layout/visual state is the question.
+to read a page; screenshot only when layout or visual state is the question.
 
-**Quoting pain:** if a JS snippet keeps breaking in shell quoting, write it to a
-file and run `node $B/browser-eval.ts /tmp/probe.js`, or pipe it:
-`cat /tmp/probe.js | node $B/browser-eval.ts -`. A single expression without
-`return` is auto-returned; multi-statement code is not.
+**Quoting pain** — write the snippet to a file and run
+`node $B/browser-eval.ts /tmp/probe.js`, or pipe it: `… | node $B/browser-eval.ts -`.
 
 ## Troubleshooting
 
+Lines starting with `↻` or `⏳` are the scripts recovering or queuing on their own;
+they need no action unless the command then fails.
+
 | Symptom | Cause → fix |
 | --- | --- |
-| `ERR_MODULE_NOT_FOUND: playwright` | Dependencies missing → `cd ~/.pi/agent/skills/browser-tools && npm install`. |
-| `connect ECONNREFUSED ::1:9222` | Old code: current scripts always use `127.0.0.1`, because `localhost` can resolve to `::1` and Chrome only binds IPv4. |
-| `↻ Chrome not running… starting it` | Normal self-heal after Chrome was killed/reaped. |
-| `No tabs open` (eval/content) | Chrome restarted mid-task. `browser-nav.ts` reopens a tab; assume page state was lost and re-navigate. |
-| `↻ navigation aborted (tab still busy) — retry 1/2` | Auto-recovered. Only a problem if it repeats and then fails. |
-| `⏳ … queuing behind it…` | Normal: commands take turns on the shared browser. |
+| `ERR_MODULE_NOT_FOUND: playwright` | Dependencies missing → `cd $B && npm install`. |
+| `No tabs open` (eval/screenshot) | Chrome restarted mid-task. Page state is lost: `browser-nav.ts <url>` again. |
 | `another browser command has the lock (pid N)` | A command died holding it. If pid N is gone: `rm ~/.cache/browser-tools/lock`. |
-| `⚠ [bot-wall]` (Google `/sorry`, Cloudflare) | Bot check, not a dead network. `node $B/browser-start.ts --restart` (headed), then go slower/fewer queries. |
-| AI Mode: "not currently available" | Headless Chrome, or no Google account. Headed fixes the first; use `browser-search.ts` for the second. |
+| `⚠ [bot-wall]` (Google `/sorry`, Cloudflare) | Bot check, not a dead network. `node $B/browser-start.ts --restart`, then fewer, slower queries. |
+| AI Mode: "not currently available" | Headless Chrome, or no Google account. Restart headed for the first; use `browser-search.ts` for the second. |
 | Wrong page inspected | `node $B/browser-tabs.ts`, then pass `--tab`. |
-| Everything slow / hangs after many tabs | `node $B/browser-tabs.ts --close all`, or `node $B/browser-stop.ts`. |
-
-**Cleanup:** run `node $B/browser-stop.ts` when all browser work in the task is
-done. Chrome is allowed to persist *within* a task; do not stop/restart it between
-two commands, and do not leave it running after the task ends.
+| Slow or hanging after many tabs | `node $B/browser-tabs.ts --close all`, or `node $B/browser-stop.ts`. |

@@ -21,6 +21,7 @@ import {
   parseArgs,
   pickPage,
   runBrowserCommand,
+  sleep,
 } from "./shared.ts";
 
 const args = parseArgs(process.argv.slice(2));
@@ -72,7 +73,7 @@ function toSource(script: string): string {
 await runBrowserCommand(async (browser) => {
   const page = await pickPage(browser, { tab: flagValue(args, "tab") });
   const wait = numFlag(args, "wait", 0);
-  if (wait > 0) await new Promise((resolve) => setTimeout(resolve, wait));
+  if (wait > 0) await sleep(wait);
 
   const result = await page.evaluate(toSource(code));
 

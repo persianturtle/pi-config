@@ -12,6 +12,7 @@
  * Chrome is started automatically if it is not already running.
  */
 import {
+  DEFAULT_SETTLE,
   flagValue,
   gotoSettled,
   hasFlag,
@@ -48,7 +49,7 @@ await runBrowserCommand(async (browser) => {
   await gotoSettled(page, url, { timeoutMs: timeout });
   const notes = await settlePage(page, {
     waitFor: flagValue(args, "wait-for"),
-    settleMs: numFlag(args, "settle", 800),
+    settleMs: numFlag(args, "settle", DEFAULT_SETTLE),
     timeoutMs: timeout,
   });
 

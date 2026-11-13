@@ -27,6 +27,7 @@ import {
   rememberTab,
   runBrowserCommand,
   settlePage,
+  sleep,
 } from "./shared.ts";
 
 const args = parseArgs(process.argv.slice(2));
@@ -84,7 +85,7 @@ await runBrowserCommand(async (browser) => {
     console.error(`  page: ${page.url()}`);
     console.error(`  text: ${shell.replace(/\s+/g, " ").slice(0, 240)}`);
     console.error(
-      "  Try: node browser-nav.ts https://www.google.com/aimode --wait 5000, or check you are not on a /sorry bot page.",
+      "  Try: node browser-nav.ts https://www.google.com/aimode --settle 5000, or check you are not on a /sorry bot page.",
     );
     process.exit(2);
   }
@@ -96,19 +97,19 @@ await runBrowserCommand(async (browser) => {
   // Real input events, not synthetic dispatchEvent — this is what makes it behave.
   await composer.click();
   await composer.fill(question);
-  await new Promise((resolve) => setTimeout(resolve, 400));
+  await sleep(400);
   await composer.press("Enter");
   console.error(`↪ submitted at ${new Date().toISOString()}`);
 
+  // Poll every 3s until Google says the answer is ready, or the page text has
+  // stopped growing with no "stop generating" button left, or time runs out.
   const deadline = Date.now() + timeoutSeconds * 1000;
-  await new Promise((resolve) => setTimeout(resolve, 3000));
-
   let lastLength = -1;
   let stable = 0;
   let state = { ready: false, generating: true, length: 0 };
-  const polls = Math.max(1, Math.floor((timeoutSeconds * 1000) / 3000));
 
-  for (let i = 0; i < polls; i++) {
+  for (let poll = 1; ; poll++) {
+    await sleep(3000);
     state = await page.evaluate(() => {
       const text = document.body.innerText;
       const generating = Array.from(document.querySelectorAll("button")).some(
@@ -122,13 +123,12 @@ await runBrowserCommand(async (browser) => {
     stable = state.length === lastLength ? stable + 1 : 0;
     lastLength = state.length;
     console.error(
-      `↪ poll ${i + 1}: ${state.length} chars, generating=${state.generating}, ready=${state.ready}`,
+      `↪ poll ${poll}: ${state.length} chars, generating=${state.generating}, ready=${state.ready}`,
     );
 
     if (state.ready) break;
     if (!state.generating && stable >= 2 && state.length > before + 300) break;
     if (Date.now() > deadline) break;
-    await new Promise((resolve) => setTimeout(resolve, 3000));
   }
 
   const answer = await page.evaluate((text: string) => {
@@ -143,8 +143,8 @@ await runBrowserCommand(async (browser) => {
 
   if (!state.ready && state.length <= before + 300) {
     console.error(
-      `⚗ No answer appeared within ${timeoutSeconds}s — the question may not have submitted. Re-run with --new-thread.`,
+      `⚠ No answer appeared within ${timeoutSeconds}s — the question may not have submitted. Re-run with --new-thread.`,
     );
   }
-  console.log(answer.slice(0, limit) || "(empty answer — see the page dump above)");
+  console.log(answer.slice(0, limit) || "(empty answer)");
 });

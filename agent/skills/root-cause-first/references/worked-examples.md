@@ -9,15 +9,16 @@ path that feels obvious, why it is wrong, and what the actual digging looks like
 
 **Symptom.** `checkout.spec.ts` fails ~1 in 6 CI runs with `expect(received).toBe("paid")`.
 Passes locally, every time. Past commits contain two "fix flaky checkout test" messages.
+CI shuffles the file order; the suite runs with `isolate: false`.
 
 **Obvious path.** Add `await waitForTimeout(2000)` before the assert, or retry the
 test twice. Push. Green.
 
 **What the procedure forces instead.**
 
-1. *Classify.* Run locally with parallelism on: fails 3/7 with
-   `vitest run --no-file-parallelism` off, 0/7 with it on. That single fact kills
-   "flaky" — it is order-dependent, not timing-dependent.
+1. *Classify.* Run the suite locally seven times with CI's shuffled file order
+   (`--sequence.shuffle.files`): fails 3/7. In the default fixed order: 0/7. That
+   single fact kills "flaky" — it is order-dependent, not timing-dependent.
 2. *Localize.* Run `checkout.spec.ts` alone → green. Run it after
    `cart.spec.ts` → red. Diff the two files: both use the same seeded Stripe mock
    keyed by a module-level `const lastCharge`, reset in `beforeEach` of one file only.
@@ -34,8 +35,8 @@ test twice. Push. Green.
    retry, which leaves the race and costs 2s × N. Recommend (a): less code, and the
    race becomes structurally impossible instead of "usually fast enough".
 
-**Report says:** intermittent 3/7, reproduces only with parallelism, root cause is
-module-level mock state, home is the test, and — the part worth writing down —
+**Report says:** intermittent 3/7, reproduces only when `cart` runs before `checkout`,
+root cause is module-level mock state, home is the test, and — the part worth writing down —
 *"the two previous 'fix flaky' commits added waits; the race has been there since the
 mock was introduced."*
 
@@ -55,11 +56,10 @@ Mostly true, and still wrong.
 
 **What the procedure forces instead.**
 
-1. *Baseline.* Run `tsc --noEmit` on a clean worktree at HEAD → also errors, but only
-   in the new run, and only because the whole suite previously aborted earlier. Check
-   how the check is actually invoked: `npm run typecheck` is
-   `tsc -p tsconfig.app.json`, which excludes that file. CI runs `tsc -b`, which
-   includes it.
+1. *Baseline.* Run `tsc --noEmit` on a clean worktree at HEAD → the same error. So it
+   is pre-existing — but then why has nobody seen it? Check how the check is actually
+   invoked: `npm run typecheck` is `tsc -p tsconfig.app.json`, which excludes that
+   file. CI runs `tsc -b`, which includes it.
 2. *Now the real finding.* The file was never checked by anything anyone ran. The
    local script and CI disagree about scope. The error is old and, until this change,
    unreachable by any command in the repo.

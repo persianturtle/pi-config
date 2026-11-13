@@ -28,17 +28,15 @@ export type RunOptions = {
 };
 
 /** Settle time after a navigation, in ms. Override with --settle. */
-export const DEFAULT_SETTLE = Number(process.env.BROWSER_TOOLS_SETTLE ?? 800);
-
-const autoStartEnabled = process.env.BROWSER_TOOLS_NO_AUTOSTART !== "1";
+export const DEFAULT_SETTLE = 800;
 
 /* ------------------------------------------------------- serialization lock */
 
 const LOCK_FILE = `${CACHE_DIR}/lock`;
-const LOCK_WAIT_MS = Number(process.env.BROWSER_TOOLS_LOCK_WAIT ?? 120_000);
+const LOCK_WAIT_MS = 120_000;
 const HELD_TOO_LONG_MS = 5 * 60_000;
 
-function sleep(ms: number): Promise<void> {
+export function sleep(ms: number): Promise<void> {
   return new Promise((resolve) => setTimeout(resolve, ms));
 }
 
@@ -119,10 +117,6 @@ async function withLock<T>(action: () => Promise<T>): Promise<T> {
 
 /* ------------------------------------------------------------------ connect */
 
-async function connectOnce(timeoutMs = 10_000): Promise<Browser> {
-  return connectChrome(timeoutMs);
-}
-
 /**
  * Connect to Chrome. If the debug port is dead, restart Chrome in the mode it was last
  * started in and retry once — so `ECONNREFUSED` stops being a dead end (memory guards
@@ -130,20 +124,18 @@ async function connectOnce(timeoutMs = 10_000): Promise<Browser> {
  */
 export async function connect(): Promise<Browser> {
   if (!(await isPortOpen())) {
-    if (!autoStartEnabled) throw new Error(`nothing on :${CDP_PORT} (auto-start disabled)`);
     console.error("↻ Chrome not running on :9222 — starting it (one moment)…");
     await launchChrome(readMode());
-    return connectOnce();
+    return connectChrome();
   }
   try {
-    return await connectOnce();
-  } catch (error) {
-    if (!autoStartEnabled) throw error;
+    return await connectChrome();
+  } catch {
     console.error("↻ Chrome is on :9222 but not answering — restarting it…");
     killOurChrome();
     await sleep(400);
     await launchChrome(readMode());
-    return connectOnce();
+    return connectChrome();
   }
 }
 
@@ -342,7 +334,7 @@ export async function settlePage(
   }
   await page.waitForLoadState("networkidle", { timeout: 5000 }).catch(() => {});
   const settle = options.settleMs ?? DEFAULT_SETTLE;
-  if (settle > 0) await new Promise((resolve) => setTimeout(resolve, settle));
+  if (settle > 0) await sleep(settle);
   return notes;
 }
 
@@ -474,5 +466,3 @@ export async function warnIssues(page: Page): Promise<void> {
     console.error(`⚠ [${issue.kind}] ${issue.message}`);
   }
 }
-
-export { CDP_PORT };

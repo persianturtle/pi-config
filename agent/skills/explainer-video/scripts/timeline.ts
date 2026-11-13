@@ -1,11 +1,15 @@
 /**
  * Timeline: turn a scene list into timings, and complain before anything is rendered.
  *
- *   node scripts/timeline.ts --scenes scenes.mjs [--vo vo.json] [--frames frames]
- *                            [--target 15] [--json]
+ *   node scripts/timeline.ts --scenes scenes.mjs [--vo vo.json] [--clip-root frames]
+ *                            [--fps 30] [--target 15] [--json]
  *
- * Scene fields read here: id, kind, dur (explicit override), vo (string),
- * clip / footage.clip (captured footage to overlay), clipMode ("play" | "hold").
+ * --json prints the plan (scenes with start/dur) that verify.ts takes as --plan.
+ * --vo is a JSON map of scene id → measured narration seconds.
+ *
+ * Scene fields read here: id, kind, dur (explicit override), vo (text, or
+ * {text, dur, at} once synthesised), clip / footage.clip (captured footage to
+ * overlay, a directory of frames under --clip-root), clipMode ("play" | "hold").
  *
  * A scene is as long as its LONGEST obligation — reading time, spoken time, or
  * footage time — never the average of them, and never shorter than the footage
@@ -14,6 +18,7 @@
  */
 import { existsSync, readdirSync, readFileSync } from "node:fs";
 import { resolve } from "node:path";
+import { parseArgs } from "node:util";
 
 /** ~21 chars/sec for dense technical text at slide sizes. */
 const READ_CPS = 21;
@@ -26,20 +31,12 @@ type Scene = {
   id: string;
   kind?: string;
   dur?: number;
-  vo?: string;
+  vo?: string | { text?: string; dur?: number };
   clip?: string;
   footage?: { clip?: string };
   clipMode?: string;
   [k: string]: unknown;
 };
-
-/** With a fallback the result is always a string, so callers do not need guards. */
-function arg(name: string): string | undefined;
-function arg(name: string, fallback: string): string;
-function arg(name: string, fallback?: string): string | undefined {
-  const i = process.argv.indexOf(`--${name}`);
-  return i >= 0 ? (process.argv[i + 1] ?? fallback) : fallback;
-}
 
 const flat = (value: unknown): string => {
   if (typeof value === "string") return value;
@@ -87,12 +84,23 @@ function clipSeconds(dir: string, fps: number, mode: string) {
   return mode === "hold" ? 0 : n / fps;
 }
 
-const scenes = await loadScenes(arg("scenes", "scenes.mjs") as string);
-const fps = Number(arg("fps", "30"));
-const framesRoot = arg("frames", "frames");
-const target = Number(arg("target", "0"));
-const voFile = arg("vo");
-const voDurations: Record<string, number> = voFile ? JSON.parse(readFileSync(voFile, "utf8")) : {};
+const { values: args } = parseArgs({
+  options: {
+    scenes: { type: "string", default: "scenes.mjs" },
+    vo: { type: "string" },
+    "clip-root": { type: "string", default: "frames" },
+    fps: { type: "string", default: "30" },
+    target: { type: "string", default: "0" },
+    json: { type: "boolean", default: false },
+  },
+});
+
+const scenes = await loadScenes(args.scenes);
+const fps = Number(args.fps);
+const target = Number(args.target);
+const voDurations: Record<string, number> = args.vo
+  ? JSON.parse(readFileSync(args.vo, "utf8"))
+  : {};
 
 const problems: string[] = [];
 let t = 0;
@@ -101,15 +109,16 @@ const plan = scenes.map((s) => {
   const mode = (s.clipMode ?? "play") as string;
   let footage = 0;
   if (clip) {
-    const dir = resolve(framesRoot, clip);
+    const dir = resolve(args["clip-root"], clip);
     const seconds = clipSeconds(dir, fps, mode);
     if (seconds === null) problems.push(`${s.id}: clip "${clip}" does not exist at ${dir}`);
     else footage = seconds + 5; // + tail so the result is still on screen while it is discussed
   }
   const text = flat(s);
-  const words = (s.vo ?? "").split(/\s+/).filter(Boolean).length;
+  const vo = typeof s.vo === "string" ? { text: s.vo } : (s.vo ?? {});
+  const words = (vo.text ?? "").split(/\s+/).filter(Boolean).length;
   // Real audio length when it exists, word estimate only before synthesis.
-  const measured = voDurations[s.id] as number | undefined;
+  const measured = (voDurations[s.id] as number | undefined) ?? vo.dur;
   const spoken = measured ?? words * WORD_SEC;
   const read = text.length / READ_CPS;
   const dur = s.dur ?? Math.min(MAX_SCENE, Math.max(MIN_SCENE, Math.max(read, spoken, footage)));
@@ -140,7 +149,7 @@ if (target > 0) {
   }
 }
 
-if (arg("json")) {
+if (args.json) {
   console.log(JSON.stringify({ total, fps, problems, scenes: plan }, null, 2));
 } else {
   for (const s of plan) {

@@ -5,10 +5,8 @@ description: Standing authorization plus a procedure for investigating failing c
 
 # Root cause first
 
-**You already have authorization to dig.** You do not need to earn permission to
-investigate a red check, and you must not pause to ask for it. The pause is the
-failure mode this skill exists to kill: every second spent asking "want me to look
-into it?" is a second spent on a question whose answer is always yes.
+**You already have authorization to dig.** Do not pause to ask whether you may
+investigate a red check — the answer is always yes.
 
 Two permissions get conflated. Keep them apart:
 
@@ -17,8 +15,8 @@ Two permissions get conflated. Keep them apart:
 | **Finding out** | Yes, unconditionally, for the whole session | Reproduce, re-run, restart services, spike a throwaway experiment, read dependency source, bisect, temporarily instrument code |
 | **Shipping** | No — needs the plan accepted | The durable fix: the change that stays in the tree |
 
-So: investigate freely, then come back with **cause + plan**. That is the deliverable.
-Not a shrug, not "seems unrelated", not a menu of whether-to-investigate options.
+So: investigate freely, then come back with **cause + plan**. That is the deliverable —
+not "seems unrelated", and not a menu of whether-to-investigate options.
 
 ## Pre-approved without asking
 
@@ -37,8 +35,8 @@ Not a shrug, not "seems unrelated", not a menu of whether-to-investigate options
 - **One retry** of a genuinely non-deterministic failure — to classify it, never to
   clear it.
 
-Two limits on all of the above: nothing on that list may survive into the final diff,
-and a scratch file left behind is a defect, not a loose end. Delete it or name it.
+One limit on all of the above: none of it may survive into the final diff. Delete
+scratch files and instrumentation, or name what you left in the report.
 
 ## Banned, with the reason
 
@@ -51,11 +49,8 @@ and a scratch file left behind is a defect, not a loose end. Delete it or name i
 | "Pre-existing" / "unrelated to my change" / "environment issue" | Unproven until you ran the check on a clean tree or another env. A pre-existing failure your change merely *unmasked* is still your failure to report. |
 | Pin, downgrade, or `--force` a dependency until the error disappears | That is suppression with extra steps, and it costs a future outage. |
 | "Couldn't reproduce, nothing more I can do" | Premature stop. See the timebox below. |
-| Asking permission to investigate | Answer is already yes. |
 
 ## Procedure
-
-Work the steps in order. Show your working wherever it is load-bearing.
 
 ### 1. Reproduce and classify
 
@@ -118,7 +113,7 @@ intact, so choose deliberately:
 | **Harness / environment** | Green in one env, red in another; the difference is version, cwd, locale, port, seed, or leftover data | Fix the harness or config, then re-run in *both* envs |
 | **The check itself** | A lint rule or type config that is wrong, misapplied, or mis-scoped | Fix the rule/config with a written justification — never a per-file suppression |
 
-Then the plan, best-first, per the standing rules: one recommendation, blast radius,
+Then the plan: options best-first, one recommendation, and for each the blast radius,
 what gets deleted, and whether CI would catch a recurrence. If a check exists nowhere
 in CI, that is a cost you report, not a neutral fact.
 

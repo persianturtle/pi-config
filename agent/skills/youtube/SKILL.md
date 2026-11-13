@@ -5,40 +5,20 @@ description: Fetch timestamped transcripts from YouTube videos. Use when the use
 
 # YouTube Transcript
 
-Fetch timestamped transcripts from YouTube videos using the Innertube API. No API key required — uses the Android client endpoint.
-
-## Setup
-
-Run once before first use:
+Prints a video's captions with timestamps. No API key and no install step — plain
+`node`, no dependencies.
 
 ```bash
-cd ~/.pi/agent/skills/youtube
-npm install
+T=~/.pi/agent/skills/youtube/transcript.ts
+
+node $T https://youtube.com/watch?v=<video-id>   # a URL (watch, shorts, embed, youtu.be)…
+node $T <video-id>                               # …or the bare 11-character ID
+node $T <video-id> --lang nl                     # a specific language
+node $T <video-id> --details                     # with title, channel, length, views
+node $T <video-id> --details --json              # raw JSON
 ```
 
-## Usage
-
-```bash
-# Basic — formatted timestamped output
-node transcript.ts https://youtube.com/watch?v=<video-id>
-
-# Just the video ID works too
-node transcript.ts <video-id>
-
-# Specific language
-node transcript.ts https://youtu.be/<video-id> --lang nl
-
-# With video metadata
-node transcript.ts <video-id> --details
-
-# Increase retries for flaky networks
-node transcript.ts <video-id> --retries 5
-
-# Raw JSON output (for programmatic use)
-node transcript.ts <video-id> --details --json
-```
-
-## Output Format
+Output:
 
 ```
 [0:00] All right. So, I got this UniFi Theta
@@ -46,72 +26,19 @@ node transcript.ts <video-id> --details --json
 [1:23] And here's the final result
 ```
 
-With `--details`, the output includes a header:
+`--json` prints the segments as `[{ offset, duration, text }]` (seconds); with
+`--details` it prints `{ videoDetails, segments }`.
 
-```
-📺 Video Title Here
-👤 Channel Name
-⏱ 3:45
-👁 123,456 views
+## When it fails
 
---- Transcript ---
+Failures exit non-zero with one `Error:` line that says which case it is:
 
-[0:00] First line of transcript
-[0:15] Second line
-```
+| Message | Meaning |
+| --- | --- |
+| `Could not extract a valid video ID` | The input is not a YouTube URL or ID. |
+| `unavailable or not playable` | Private, removed, or region/age-restricted. |
+| `Transcript is disabled` | The video has no captions at all. |
+| `No "<lang>" transcript … Available: …` | Retry with one of the listed language codes. |
+| `rate-limited (captcha)` | YouTube is blocking this IP for now; wait rather than retry. |
 
-## TypeScript API
-
-Import from `fetch.ts` for programmatic use:
-
-```typescript
-import {
-  fetchTranscript,
-  listLanguages,
-  formatTranscript,
-  formatTimestamp,
-  extractVideoId,
-} from "./fetch.js";
-
-// Fetch segments only
-const segments = await fetchTranscript("dQw4w9WgXcQ");
-// => [{ offset: 0, duration: 3.2, text: "..." }, ...]
-
-// Fetch with metadata
-const result = await fetchTranscript("dQw4w9WgXcQ", {
-  lang: "nl",
-  videoDetails: true,
-});
-// => { videoDetails: { title, author, lengthSeconds, ... }, segments }
-
-// List available languages
-const langs = await listLanguages("dQw4w9WgXcQ");
-// => [{ code: "en", name: "English" }, { code: "nl", name: "Nederlands (auto-gegenereerd)", autoCaptions: true }, ...]
-
-// Format segments as timestamped text
-const text = formatTranscript(segments);
-// => "[0:00] First line\n[0:15] Second line"
-
-// Extract video ID from any URL format
-const id = extractVideoId("https://youtube.com/watch?v=abc123"); // "abc123"
-```
-
-## Error Handling
-
-The module throws specific error types:
-
-| Error                        | Meaning                                            |
-| ---------------------------- | -------------------------------------------------- |
-| `YouTubeInvalidVideoIdError` | Could not extract video ID from input              |
-| `YouTubeVideoUnavailableError` | Video is private, removed, or not playable       |
-| `YouTubeTooManyRequestsError` | Rate-limited (captcha detected)                    |
-| `YouTubeTranscriptDisabledError` | Transcript/captions disabled for this video      |
-| `YouTubeTranscriptNotAvailableError` | No transcript found                      |
-| `YouTubeTranscriptLanguageNotAvailableError` | Requested language not available       |
-
-## When to Use
-
-- User asks to summarize a YouTube video
-- User wants to know "what was said" in a video
-- User provides a YouTube URL and wants the transcript
-- User wants to search/analyze video content by transcript text
+Transient network failures are retried twice by default; `--retries <n>` changes that.

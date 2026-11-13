@@ -4,13 +4,14 @@
  * policy, gates, time budget).
  *
  *   node scripts/brief.ts                       # print the questions
- *   node scripts/brief.ts --set audience=... --set runtime=17 ...
+ *   node scripts/brief.ts --set audience=... --set runtime=17 ...   # or bare key=value
  *   node scripts/brief.ts --from brief.answers.json --write build/brief.json
  *
  * Answering is optional. Unanswered questions fall back to DEFAULTS and are
  * reported as `assumed:` so a wrong guess is visible instead of silent.
  */
 import { readFileSync, writeFileSync } from "node:fs";
+import { parseArgs } from "node:util";
 
 type Question = {
   key: string;
@@ -58,7 +59,7 @@ const GROUPS: { title: string; questions: Question[] }[] = [
       {
         key: "narration",
         ask: "Narrated throughout, or voice only on the critical points?",
-        why: "Narrated-throughout costs a full voice pass and forces a bed under everything. Points-only is cheaper and reads as more serious, but needs a sound bed in the gaps or it feels broken (see quality.md).",
+        why: "Narrated-throughout costs a full voice pass and forces a bed under everything. Points-only is cheaper and reads as more serious, but needs a sound bed in the gaps or it feels broken (see references/pipeline.md).",
         options: "critical-only | continuous | silent-with-captions",
       },
       {
@@ -127,22 +128,22 @@ const DEFAULTS: Record<string, string> = {
 
 /** Length/voice choices that follow from the answers rather than being picked twice. */
 function derive(answers: Record<string, string>) {
-  const minutes = Number(answers.runtime ?? "15") || 15;
-  const fps = (answers.resolution ?? "1920x1080@30").includes("@60") ? 60 : 30;
+  const minutes = Number(answers.runtime) || 15;
+  const fps = answers.resolution?.includes("@60") ? 60 : 30;
+  const credentials = (answers.credentials ?? "").toLowerCase();
   return {
     fps,
     sceneCountApprox: Math.round(minutes * 3.6),
     voicePolicy:
-      (answers.narration ?? DEFAULTS.narration) === "continuous"
+      answers.narration === "continuous"
         ? "every scene narrated"
         : "narration only on cannot_miss items",
     silencePolicy:
-      (answers.narration ?? DEFAULTS.narration) === "critical-only"
+      answers.narration === "critical-only"
         ? "speech-free stretches need a bed at about -34 dB, else it reads as a broken file"
         : "continuous bed under everything",
     sideEffectGate:
-      (answers.credentials ?? "").toLowerCase().includes("real") ||
-      (answers.credentials ?? "").toLowerCase().includes("live")
+      credentials.includes("real") || credentials.includes("live")
         ? "CONFIRM before recording: footage creates real, billable or undoable side effects"
         : "no known side effects",
     renderMinutesApprox: Math.round((minutes * 60 * 30) / 700),
@@ -168,38 +169,20 @@ function printQuestions() {
   for (const [k, v] of Object.entries(DEFAULTS)) console.log(`- ${k}: ${v}`);
 }
 
-const args = process.argv.slice(2);
-const answers: Record<string, string> = { ...DEFAULTS };
-const assumed = new Set(Object.keys(DEFAULTS));
-let outFile: string | null = null;
+const { values: args, positionals } = parseArgs({
+  allowPositionals: true,
+  options: {
+    set: { type: "string", multiple: true, default: [] },
+    from: { type: "string" },
+    write: { type: "string" },
+  },
+});
 
-const known = new Set(GROUPS.flatMap((g) => g.questions.map((q) => q.key)));
-
-const pairs: string[] = [];
-for (let i = 0; i < args.length; i += 1) {
-  const a = args[i] as string;
-  if (a === "--write") {
-    outFile = args[i + 1] ?? null;
-    i += 1;
-    continue;
-  }
-  if (a === "--from") {
-    const loaded = JSON.parse(readFileSync(args[i + 1] as string, "utf8"));
-    for (const [k, v] of Object.entries(loaded)) {
-      answers[k] = String(v);
-      assumed.delete(k);
-    }
-    i += 1;
-    continue;
-  }
-  // accept `--set k=v`, `--set=k=v`, and a bare `k=v`
-  if (a === "--set" && args[i + 1]) {
-    pairs.push(args[i + 1] as string);
-    i += 1;
-    continue;
-  }
-  if (a.startsWith("--set=")) pairs.push(a.slice(6));
-  else if (/^[a-z][a-z_]*=/.test(a)) pairs.push(a);
+// Answers come from a JSON file, `--set key=value`, or a bare `key=value`.
+const pairs = [...args.set, ...positionals];
+if (pairs.length === 0 && !args.from) {
+  printQuestions();
+  process.exit(0);
 }
 
 const bad = pairs.filter((p) => !p.includes("="));
@@ -207,23 +190,25 @@ if (bad.length) {
   console.error(`unreadable answer(s): ${bad.join(", ")} — write them as key=value`);
   process.exit(2);
 }
-for (const p of pairs) {
-  const eq = p.indexOf("=");
-  const key = p.slice(0, eq);
-  if (!known.has(key)) {
-    // a typo'd key would otherwise be reported as an answered question
-    console.error(`unknown key "${key}". known: ${[...known].join(", ")}`);
-    process.exit(2);
-  }
-  answers[key] = p.slice(eq + 1);
-  assumed.delete(key);
+
+const given: Record<string, unknown> = {
+  ...(args.from ? JSON.parse(readFileSync(args.from, "utf8")) : {}),
+  ...Object.fromEntries(
+    pairs.map((p) => [p.slice(0, p.indexOf("=")), p.slice(p.indexOf("=") + 1)]),
+  ),
+};
+
+// A typo'd key would otherwise be reported as an answered question.
+const known = new Set(GROUPS.flatMap((g) => g.questions.map((q) => q.key)));
+const unknown = Object.keys(given).filter((key) => !known.has(key));
+if (unknown.length) {
+  console.error(`unknown key(s): ${unknown.join(", ")}. known: ${[...known].join(", ")}`);
+  process.exit(2);
 }
 
-const answered = pairs.length > 0 || args.includes("--from");
-if (!answered) {
-  printQuestions();
-  process.exit(0);
-}
+const answers: Record<string, string> = { ...DEFAULTS };
+for (const [key, value] of Object.entries(given)) answers[key] = String(value);
+const assumed = new Set(Object.keys(DEFAULTS).filter((key) => !(key in given)));
 
 const brief = { answers, assumed: [...assumed], derived: derive(answers) };
 console.log("# Brief\n");
@@ -235,7 +220,7 @@ for (const [k, v] of Object.entries(brief.derived)) console.log(`- ${k}: ${v}`);
 if (brief.derived.sideEffectGate.startsWith("CONFIRM")) {
   console.log("\n!! Blocking: confirm the account/caps with the requester before capturing.");
 }
-if (outFile) {
-  writeFileSync(outFile, `${JSON.stringify(brief, null, 2)}\n`);
-  console.log(`\nwrote ${outFile}`);
+if (args.write) {
+  writeFileSync(args.write, `${JSON.stringify(brief, null, 2)}\n`);
+  console.log(`\nwrote ${args.write}`);
 }

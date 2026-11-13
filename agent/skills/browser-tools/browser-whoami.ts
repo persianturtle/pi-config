@@ -10,7 +10,7 @@
  * out, and Google AI features behave differently without an account.
  */
 import type { Page } from "playwright";
-import { flagValue, noteTab, parseArgs, pickPage, runBrowserCommand } from "./shared.ts";
+import { flagValue, noteTab, parseArgs, pickPage, runBrowserCommand, sleep } from "./shared.ts";
 
 const args = parseArgs(process.argv.slice(2));
 const target = args.rest[0];
@@ -103,9 +103,9 @@ function isAuthPage(url: string): boolean {
 await runBrowserCommand(async (browser) => {
   const page = await pickPage(browser, { tab: flagValue(args, "tab") });
 
-  if (target && target !== "--current" && target !== page.url()) {
+  if (target && target !== page.url()) {
     await page.goto(target, { waitUntil: "domcontentloaded", timeout: 30_000 });
-    await new Promise((resolve) => setTimeout(resolve, 800));
+    await sleep(800);
   }
 
   const url = page.url();

@@ -14,11 +14,9 @@ first cut of any section is usually wrong.
 V=~/.pi/agent/skills/explainer-video
 ```
 
-The four scripts need nothing installed — they are plain `node` and `ffmpeg`. The
-`devDependencies` (biome, typescript) are only for `npm run tsc` / `npm run
-biome`, and `node_modules` is not shipped; run `npm install` here first if you
-want those checks. `frameprobe.ts` reuses browser-tools' playwright when it is
-installed, and says so plainly when it is not.
+The scripts are plain `node` plus `ffmpeg`/`ffprobe` — nothing to install.
+`frameprobe.ts` additionally uses the browser-tools skill's playwright and the
+installed Chrome.
 
 ## Step 0 — ask before building (do not skip this)
 
@@ -44,23 +42,29 @@ viewer must be able to do afterwards.
 
 ## The build
 
-Four stages, each with its own output and its own chance to fail cheaply:
+Five stages, each with its own output and its own chance to fail cheaply. The
+scripts here check the stages; the renderer, audio and compose steps are yours to
+write per project (`references/pipeline.md` shows the shape):
 
 | Stage | Output | Checked by |
 | --- | --- | --- |
 | brief | `build/brief.json` | the questions above |
-| script | scene list (data, one entry per screen) | `timeline.ts` |
+| script | scene list (data, one entry per screen) → `plan.json` | `timeline.ts` |
 | render | PNG/JPG per frame | `verify.ts --sheet` |
 | sound | narration + bed → `track.wav` | `verify.ts` |
 | compose | `walkthrough.mp4` | `verify.ts` |
 
 ```bash
+# scene list → timings; --target is minutes, --vo is measured narration lengths (optional)
 node $V/scripts/timeline.ts --scenes scenes.mjs --vo vo.json --target 17
+node $V/scripts/timeline.ts --scenes scenes.mjs --vo vo.json --json > plan.json
+
+# the gate on the finished file
 node $V/scripts/verify.ts build/walkthrough.mp4 --plan plan.json --sheet 12
 ```
 
-`timeline.ts` turns a scene list into timings and refuses to proceed when a scene
-cannot hold what it has to say. Read `references/pipeline.md` before writing the
+`timeline.ts` exits non-zero when a scene cannot hold what it has to say, a clip is
+missing, or the total drifts from the target. Read `references/pipeline.md` before writing the
 renderer — the determinism rule below is the one thing that is hard to retrofit.
 
 ## Rules that pay for themselves
@@ -99,12 +103,7 @@ fails the build past 20% near-silence.
 
 **Verify the file, not the intent.** Numeric checks catch the failures you cannot
 see by scrolling your own output; the contact sheet catches the ones no number
-catches. Run both:
-
-```bash
-node $V/scripts/verify.ts build/walkthrough.mp4 --plan plan.json --sheet 12
-# then actually open the sheets it prints
-```
+catches. Run `verify.ts` with `--sheet`, then actually open the sheets it prints.
 
 ## Time budget (measured, 1080p30, Apple Silicon)
 
@@ -137,5 +136,5 @@ on rendered frames, where it costs half an hour.
 - `scripts/timeline.ts` — scene list → timings, with pre-render complaints
 - `scripts/verify.ts` — the gate: loudness, silence, flat/frozen frames, plan drift,
   narration overlap, contact sheets
-- `scripts/frameprobe.ts` — does the thing fit in one frame (needs playwright)
+- `scripts/frameprobe.ts` — does the thing fit in one frame
 - `templates/scenes.sample.mjs` — a scene list in the shape the scripts read

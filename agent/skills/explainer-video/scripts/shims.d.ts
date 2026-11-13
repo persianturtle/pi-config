@@ -1,7 +1,7 @@
 /**
- * Playwright is not a dependency of this skill — frameprobe.ts reuses whichever
- * copy is already installed (its own, or browser-tools'). This shim only exists
- * so `npm run tsc` can type-check that import without the package present.
+ * Playwright is not a dependency of this skill — frameprobe.ts imports the
+ * browser-tools skill's copy at runtime. This shim only exists so `npm run tsc`
+ * can type-check that use without the package present.
  */
 declare module "playwright" {
   export interface Page {

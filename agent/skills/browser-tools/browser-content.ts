@@ -12,6 +12,7 @@
  * CAPTCHA or a "404 because you are not signed in" never reads like real content.
  */
 import {
+  DEFAULT_SETTLE,
   flagValue,
   gotoSettled,
   hasFlag,
@@ -51,7 +52,7 @@ await runBrowserCommand(async (browser) => {
 
   const notes = await settlePage(page, {
     waitFor: flagValue(args, "wait-for"),
-    settleMs: numFlag(args, "settle", 800),
+    settleMs: numFlag(args, "settle", DEFAULT_SETTLE),
   });
 
   const title = await page.title().catch(() => "");

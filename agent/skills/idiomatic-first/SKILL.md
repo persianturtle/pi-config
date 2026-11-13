@@ -11,18 +11,15 @@ survives because removing it would be a bigger diff teaches the next reader that
 wrapper is load-bearing.
 
 **Policy: prefer the option that leaves the codebase healthier, then argue for it.**
-These repos are maintained by the two of you, with no external users to protect, so
-breaking changes are on the table when warranted — the job is to flag them clearly and
-order the deploys, not to avoid them.
-
-Two notes on why the bar is set this way:
+The user owns these repos and there are no external users to protect, so breaking
+changes are on the table when warranted — the job is to flag them clearly and order
+the deploys, not to avoid them.
 
 - The idiomatic option is usually **less code**, not more. Adopting the documented
   primitive deletes a wrapper, its tests, and its future bug. If your "idiomatic"
   option adds indirection, it is probably not the idiom — check the docs again.
-- The default instructions you were given (system prompt, `AGENTS.md`) lean the other
-  way: keep changes minimal, do not refactor beyond the ask, prefer the smallest change
-  that tests the idea. This skill overrides that lean where it conflicts.
+- Where this skill conflicts with "keep changes minimal" or "do not refactor beyond
+  the ask" elsewhere in your instructions, this skill wins.
 
 ## Scope: when to raise a shape issue, when to shut up
 
@@ -44,29 +41,30 @@ have.** Do not blur the two in either direction.
 
 ## Decision procedure
 
-Work these in order and show your working where it is load-bearing.
-
-1. **Name both shapes.** Current shape, in one sentence. Idiomatic shape, in one
-   sentence, with the source that says so. If you cannot name the second one, you have
-   not finished step 2.
-2. **Research before you recommend** (see the research protocol below). Never quote an
-   AI Overview as evidence — open the docs and the source.
-3. **Argue against the plan you were about to execute.** This includes the user's
-   stated approach, the approach in the PR/issue, and your own first instinct. Write
-   the strongest case *against* it before writing the case for anything. Committing to
-   a position first is the mechanism: text you have already written is hard to contradict.
-4. **Choose one.** Then present, if a decision is genuinely open.
+1. **Research the idiomatic shape** before recommending it, and only where the answer
+   would change the recommendation:
+   - ask the decision question, with both options and the constraint that matters
+     (research skill: `node ~/.pi/agent/skills/browser-tools/browser-ask.ts "…"`);
+   - open the **primary source** — the docs page and the actual upstream source. An
+     AI answer is a lead, never evidence;
+   - check **local** evidence — the installed version, whether the primitive is even
+     exported here, whether tests or screenshots cover the surface.
+2. **Name both shapes.** Current shape, in one sentence. Idiomatic shape, in one
+   sentence, with the source that says so — marked `verified via upstream source` or
+   *unverified*, never implied.
+3. **Argue against the plan you were about to execute** — the user's stated approach,
+   the approach in the PR/issue, and your own first instinct. Write the strongest case
+   *against* it before writing the case for anything.
+4. **Choose one.**
 5. **Act.** If nothing breaks and the blast radius is inside the ask, do it — no
    menu, no question. Ask when a boundary is crossed, when cost roughly doubles, or
    when the answer depends on taste you do not own.
 
-Full worked examples, including the cases people get wrong (the "pixel-identical
-override" trap, the "no CI coverage means silent visual drift" trap):
+Worked examples, including the cases people get wrong (the "pixel-identical override"
+trap, the "no CI coverage means silent visual drift" trap):
 `references/idiomatic-vs-local.md`.
 
 ## Presenting options (if you present any)
-
-A menu is usually where good judgement goes to die, so constrain it:
 
 - **Order best-first.** Never least-change-first. Ordering by blast radius lets the
   first listed option anchor both you and the reader toward it.
@@ -93,16 +91,3 @@ Allowed, sometimes correct. Declare them:
   same batch — or whether it needs a compatibility window.
 - If the change needs a migrate phase, say explicitly who finishes the contract phase,
   because a migrate phase nobody closes leaves the codebase worse than it started.
-
-## Research protocol
-
-Only research where the answer would change the recommendation. For shape decisions:
-
-1. `node ~/.pi/agent/skills/browser-tools/browser-ask.ts "<the real decision question,
-   with both options and the constraint that matters>"` for the judgement call.
-2. Open the **primary source** for whatever you are about to assert: the component's
-   docs page and its actual source (`browser-content.ts`, or the upstream repo file).
-3. Check **local** evidence: the installed version, the installed source, whether the
-   primitive is even exported here, whether tests or screenshots cover the surface.
-4. Say which of the three answered. `verified via upstream source` vs `assumption` —
-   be honest, and write *unverified* rather than implying you read something.

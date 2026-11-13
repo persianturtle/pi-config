@@ -15,61 +15,44 @@
  * it. Every mid-action frame is then blank gutter with one stray field in it.
  * Bigger type is not worth that; shrink the source instead of zooming it.
  *
- * Requires playwright (npm install playwright, or reuse ~/.pi/agent/skills/browser-tools).
+ * Uses the browser-tools skill's playwright and the installed Google Chrome, so
+ * it needs `npm install` to have been run in ~/.pi/agent/skills/browser-tools.
  */
-/** With a fallback the result is always a string, so callers do not need guards. */
-function arg(name: string): string | undefined;
-function arg(name: string, fallback: string): string;
-function arg(name: string, fallback?: string): string | undefined {
-  const i = process.argv.indexOf(`--${name}`);
-  return i >= 0 ? (process.argv[i + 1] ?? fallback) : fallback;
-}
+import { mkdirSync } from "node:fs";
+import { parseArgs } from "node:util";
 
-const url = arg("url", "http://localhost:3000");
-const [cw, ch] = (arg("clip", "1680x1000") as string).split("x").map(Number);
-const zooms = (arg("zoom", "1,1.2,1.45") as string).split(",").map(Number);
-const wait = Number(arg("wait", "1500"));
-const out = arg("out", "build/probe");
-const ready = arg("ready"); // CSS selector that means "the app is interactive"
-const scale = Number(arg("scale", "1.14"));
+const { values: args } = parseArgs({
+  options: {
+    url: { type: "string", default: "http://localhost:3000" },
+    clip: { type: "string", default: "1680x1000" },
+    zoom: { type: "string", default: "1,1.2,1.45" },
+    wait: { type: "string", default: "1500" },
+    out: { type: "string", default: "build/probe" },
+    ready: { type: "string" }, // CSS selector that means "the app is interactive"
+    scale: { type: "string", default: "1.14" },
+  },
+});
 
-let chromium: typeof import("playwright").chromium | undefined;
-const candidates = [
-  "playwright",
-  "playwright-core",
-  // browser-tools already ships playwright — reuse it instead of asking for a second copy
-  `${process.env.HOME}/.pi/agent/skills/browser-tools/node_modules/playwright/index.mjs`,
-  `${process.env.HOME}/.pi/agent/skills/browser-tools/node_modules/playwright-core/index.mjs`,
-];
-for (const spec of candidates) {
-  try {
-    const mod = (await import(spec)) as typeof import("playwright");
-    if (mod.chromium) {
-      chromium = mod.chromium;
-      break;
-    }
-  } catch {
-    /* try the next place */
-  }
-}
-if (!chromium) {
-  console.error(
-    "no playwright found. Either `cd ~/.pi/agent/skills/explainer-video && npm install`, " +
-      "or install the browser-tools skill, which already ships it.",
-  );
-  process.exit(2);
-}
+const { url, out, ready } = args;
+const [cw, ch] = args.clip.split("x").map(Number);
+const zooms = args.zoom.split(",").map(Number);
+const wait = Number(args.wait);
+const scale = Number(args.scale);
 
-const { mkdirSync, existsSync } = await import("node:fs");
+const PLAYWRIGHT = `${process.env.HOME}/.pi/agent/skills/browser-tools/node_modules/playwright/index.mjs`;
+const { chromium } = await (import(PLAYWRIGHT) as Promise<typeof import("playwright")>).catch(
+  () => {
+    console.error(
+      "playwright not found — run `npm install` in ~/.pi/agent/skills/browser-tools first.",
+    );
+    process.exit(2);
+  },
+);
+
 mkdirSync(out, { recursive: true });
 
-const exe =
-  process.env.EXE ||
-  `${process.env.HOME}/Library/Caches/ms-playwright/chromium_headless_shell-1243/chrome-headless-shell-mac-arm64/chrome-headless-shell`;
-
-const browser = await chromium.launch({
-  executablePath: existsSync(exe) ? exe : undefined,
-});
+// The installed Chrome, not playwright's own download: nothing extra to install.
+const browser = await chromium.launch({ channel: "chrome" });
 
 const rows: string[] = [];
 let unverified = false; // the ready marker never appeared, so nothing here is trustworthy

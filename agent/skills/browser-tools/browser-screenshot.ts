@@ -19,6 +19,7 @@ import {
   parseArgs,
   pickPage,
   runBrowserCommand,
+  sleep,
 } from "./shared.ts";
 
 const args = parseArgs(process.argv.slice(2));
@@ -27,7 +28,7 @@ const outputPath = args.rest[0] ?? path.join("/tmp", `screenshot-${randomUUID()}
 await runBrowserCommand(async (browser) => {
   const page = await pickPage(browser, { tab: flagValue(args, "tab") });
   const wait = numFlag(args, "wait", 1000);
-  if (wait > 0) await new Promise((resolve) => setTimeout(resolve, wait));
+  if (wait > 0) await sleep(wait);
 
   // Make sure we capture a freshly painted frame, not a stale background-tab surface.
   await page.bringToFront().catch(() => {});

@@ -2,7 +2,7 @@
  * A scene list in the shape scripts/timeline.ts and scripts/verify.ts read.
  * Copy it, replace the content, keep the shape.
  *
- *   node ../scripts/timeline.ts --scenes templates/scenes.sample.mjs --target 2
+ *   node scripts/timeline.ts --scenes templates/scenes.sample.mjs --target 2
  *
  * Per scene:
  *   id     stable key — frame dir, audio file, segment name. Renaming one
@@ -11,7 +11,7 @@
  *   dur    optional; omit it and length comes from the content instead of taste
  *   vo     narration. Long text is fine — the scene grows to fit, and
  *          timeline.ts will tell you when it cannot.
- *   clip   footage to overlay, resolved against --clip-root
+ *   clip   footage to overlay: a directory of frames under --clip-root
  *   clipMode "play" uses the clip's own length, "hold" treats it as a still
  *
  * Everything else is free-form and only has to mean something to your renderer.

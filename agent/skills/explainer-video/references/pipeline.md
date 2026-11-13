@@ -34,7 +34,7 @@ The scripts read these fields; everything else is for the renderer.
 | `kind` | which layout the renderer uses |
 | `dur` | optional override; otherwise derived |
 | `vo` | narration text, or `{text, dur, at}` once synthesised |
-| `clip` / `footage.clip` | footage to overlay, resolved under `--clip-root` |
+| `clip` / `footage.clip` | footage to overlay: a directory of frames under `--clip-root` (default `frames`) |
 | `clipMode` | `play` (its own duration) or `hold` (a still) |
 
 Give every scene an `id` that is stable across edits. Renaming one silently orphans
